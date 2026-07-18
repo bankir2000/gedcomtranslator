@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GEDCOM Перекладач Pro · рос→укр</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a1d29">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header>
+  <div class="badge">GED</div>
+  <div style="flex:1;min-width:0;">
+    <h1 style="margin:0;">GEDCOM Перекладач Pro</h1>
+    <div style="font-size:.7rem;color:var(--muted);line-height:1.3;">v36 · зібрано 18.07.2026 05:07 · Банкір</div>
+  </div>
+  <span class="sub">рос → укр</span>
+  <button class="theme-toggle" id="themeBtn">☀️ День</button>
+</header>
+
+<div class="tabs">
+  <button class="tab active" data-tab="translate">📂 Переклад <span id="badge-backup" style="display:none;background:var(--orange);color:#fff;font-size:.68rem;padding:1px 6px;border-radius:999px;margin-left:4px;" title="Давно не було повного бекапу">!</span></button>
+  <button class="tab" data-tab="dict">📖 Довідник</button>
+  <button class="tab" data-tab="patr">👤 По-батькові</button>
+  <button class="tab" data-tab="names">🙋 Імена</button>
+  <button class="tab" data-tab="surnames">👪 Прізвища</button>
+  <button class="tab" data-tab="places">🏘️ Місця</button>
+  <button class="tab" id="tab-review" data-tab="review">🔍 Перегляд змін <span id="badge-changes" style="display:none;background:var(--accent);color:#fff;font-size:.68rem;padding:1px 6px;border-radius:999px;margin-left:4px;"></span></button>
+  <button class="tab" id="tab-untrans" data-tab="untrans">⚠️ Непереведені <span id="badge-untrans" style="display:none;background:var(--red);color:#fff;font-size:.68rem;padding:1px 6px;border-radius:999px;margin-left:4px;"></span></button>
+  <button class="tab" data-tab="analysis">📊 Аналіз <span id="badge-analysis" style="display:none;background:var(--red);color:#fff;font-size:.68rem;padding:1px 6px;border-radius:999px;margin-left:4px;"></span></button>
+  <button class="tab" data-tab="search">🔎 Пошук</button>
+  <button class="tab" data-tab="compare">⚖️ Порівняння</button>
+  <button class="tab" data-tab="fsreport">📇 Звіт FamilySearch</button>
+  <button class="tab" data-tab="tree">🌳 Дерево</button>
+</div>
+
+<!-- ===== TAB: TRANSLATE (майстер із 3 кроків) ===== -->
+<div class="panel active" id="panel-translate">
+
+  <div class="wizard-steps" id="wizardSteps">
+    <button class="wiz-step active" data-step="1"><span class="wiz-num">1</span><span class="wiz-label">Файл</span></button>
+    <div class="wiz-line"></div>
+    <button class="wiz-step" data-step="2"><span class="wiz-num">2</span><span class="wiz-label">Параметри</span></button>
+    <div class="wiz-line"></div>
+    <button class="wiz-step" data-step="3"><span class="wiz-num">3</span><span class="wiz-label">Результат</span></button>
+  </div>
+
+  <!-- ===== КРОК 1: ФАЙЛ ===== -->
+  <div class="wiz-step-panel" id="wizStep1" style="display:flex;">
+    <div class="dropzone" id="dropzone">
+      <div class="icon">📄</div>
+      <h2>Завантаж GEDCOM файл</h2>
+      <p>Перетягни .ged або натисни для вибору · кодування визначається автоматично</p>
+      <input type="file" id="fileInput" accept=".ged,.gedcom,.txt">
+    </div>
+
+    <div class="stats" id="statsBar" style="display:none">
+      <div class="stat"><div class="num" id="st-persons">0</div><div class="lbl">Осіб</div></div>
+      <div class="stat"><div class="num" id="st-families">0</div><div class="lbl">Сімей</div></div>
+      <div class="stat"><div class="num" id="st-lines">0</div><div class="lbl">Рядків</div></div>
+      <div class="stat"><div class="num" id="st-replaced">0</div><div class="lbl">Замін</div></div>
+    </div>
+
+    <div class="row" style="justify-content:flex-end;">
+      <button class="btn btn-primary" id="btn-step1-next" disabled>Далі: параметри →</button>
+    </div>
+  </div>
+
+  <!-- ===== КРОК 2: ПАРАМЕТРИ ===== -->
+  <div class="wiz-step-panel" id="wizStep2" style="display:none;">
+    <div class="section">
+      <div class="section-head">⚙️ Параметри перекладу</div>
+      <div class="section-body">
+        <div style="margin-bottom:14px;">
+          <div style="font-size:.82rem;font-weight:700;margin-bottom:6px;color:var(--text2);">Режим імен</div>
+          <div class="row" style="gap:16px;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem;">
+              <input type="radio" name="nameMode" value="historical" checked> Історичний (Іоанн, Гавриїл, Аврамій)
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem;">
+              <input type="radio" name="nameMode" value="modern"> Сучасний (Іван, Гаврило, Абрам)
+            </label>
+          </div>
+        </div>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:.82rem;font-weight:700;margin-bottom:6px;color:var(--text2);">Режим прізвищ</div>
+          <div class="row" style="gap:16px;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem;">
+              <input type="radio" name="surnameMode" value="none"> Не перекладати
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem;">
+              <input type="radio" name="surnameMode" value="translit"> Лише транслітерувати
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem;">
+              <input type="radio" name="surnameMode" value="dict" checked> За словником (типово)
+            </label>
+          </div>
+          <div style="font-size:.75rem;color:var(--muted);margin-top:4px;">«За словником» нічого не вигадує для невідомих прізвищ — лишає як є, якщо точного відповідника нема.</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:.85rem;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="opt-names" checked> Імена (GIVN)</label>
+          <span></span>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="opt-patr" checked> По-батькові (_PATR / авто)</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="opt-places" checked> Місця (PLAC, CITY…)</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="opt-notes" checked> Нотатки (NOTE, TEXT)</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;" title="Стосується лише Місць і Нотаток. Для Імені/По-батькові/Прізвища вимкнено назавжди — там або словник/правило, або слово лишається як є."><input type="checkbox" id="opt-translitAuto" checked> Авто-транслітерація (лише Місця/Нотатки)</label>
+        </div>
+        <div style="font-size:.75rem;color:var(--muted);margin-top:4px;">Ім'я, По-батькові й Прізвище ніколи не транслітеруються "навгад" — лише за довідником або граматичним правилом по-батькові. Якщо збігу нема, слово лишається як є і потрапляє у «Непереведені».</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <button class="btn btn-ghost" id="btn-step2-back">← Назад до файлу</button>
+      <button class="btn btn-primary" id="btn-translate">🔄 Перекласти</button>
+      <button class="btn btn-ghost" id="btn-clear">✖ Очистити й почати заново</button>
+    </div>
+  </div>
+
+  <!-- ===== КРОК 3: РЕЗУЛЬТАТ ===== -->
+  <div class="wiz-step-panel" id="wizStep3" style="display:none;">
+    <div class="section" id="progressSection" style="display:none">
+      <div class="section-head">Прогрес</div>
+      <div class="section-body" style="display:flex;flex-direction:column;gap:10px;">
+        <div class="progress-bar"><div class="progress-fill" id="progFill"></div></div>
+        <div class="log" id="logBox"></div>
+      </div>
+    </div>
+
+    <div class="section" id="previewSection" style="display:none">
+      <div class="section-head">
+        Попередній перегляд
+        <button class="btn btn-success btn-sm" id="btn-download">⬇ Завантажити .ged</button>
+      </div>
+      <div class="section-body">
+        <textarea class="preview-area" id="previewArea" readonly rows="12"></textarea>
+      </div>
+    </div>
+
+    <div class="row">
+      <button class="btn btn-ghost" id="btn-step3-back">← Змінити параметри й перекласти знову</button>
+    </div>
+
+    <!-- ===== РЕЗЕРВНІ КОПІЇ (нове в Pro 3.0) ===== -->
+    <div class="section">
+      <div class="section-head">🗄 Резервні копії (авто)</div>
+      <div class="section-body">
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">
+          Перед кожним перекладом і кожним імпортом словника програма сама зберігає знімок.
+          Останні 8 копій зберігаються в цьому браузері.
+        </div>
+        <div class="backup-list" id="backupList"></div>
+        <div class="empty-hint" id="backupEmpty" style="display:none;">Резервних копій ще немає.</div>
+      </div>
+    </div>
+
+    <!-- ===== ПОВНЕ РЕЗЕРВНЕ КОПІЮВАННЯ (усі дані одним файлом) ===== -->
+    <div class="section">
+      <div class="section-head">💾 Повний бекап усіх словників</div>
+      <div class="section-body">
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">
+          Автобекапи вище живуть лише в цьому браузері й зникають, якщо очистити кеш.
+          Завантаж один JSON-файл з усіма наборами словників, словником по-батькові й позначками
+          «не дублікати» — його можна зберегти окремо або перенести на інший пристрій.
+        </div>
+        <div id="lastBackupStatus" style="font-size:.82rem;margin-bottom:10px;padding:8px 10px;border-radius:8px;"></div>
+        <div class="row">
+          <button class="btn btn-primary btn-sm" id="btn-export-all">⬇ Експортувати все</button>
+          <button class="btn btn-ghost btn-sm" id="btn-import-all">⬆ Імпортувати повний бекап</button>
+          <input type="file" id="fullImportInput" accept=".json" style="display:none;">
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== НЕБЕЗПЕЧНА ЗОНА: ОЧИЩЕННЯ ДАНИХ САЙТУ ===== -->
+    <div class="section" style="border-color:var(--red);">
+      <div class="section-head" style="color:var(--red);">⚠️ Очистити всі дані сайту</div>
+      <div class="section-body">
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">
+          Видаляє <b>все</b>, що застосунок зберіг у цьому браузері: увесь довідник, словник по-батькові,
+          позначки «не дублікати» й автобекапи вище. Це НЕ видаляє файли на диску (завантажені .ged/.html),
+          тільки внутрішні дані застосунку. Якщо не зробив(-ла) «Експортувати все» вище — після очищення
+          відновити ці дані буде неможливо.
+        </div>
+        <button class="btn btn-sm" id="btn-clear-site-data" style="background:var(--red);color:#fff;">🗑 Очистити кеш сайту</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: DICT (єдиний довідник) ===== -->
+<div class="panel" id="panel-dict">
+
+  <!-- ДОВІДНИК: ІМЕНА / ПРІЗВИЩА / МІСЦЯ / ІНШЕ / ПО-БАТЬКОВІ -->
+  <div class="section">
+    <div class="section-head">
+      📖 Довідник
+      <div class="row">
+        <input type="text" class="search-input" id="dictSearch" placeholder="Пошук…">
+        <button class="btn btn-primary btn-sm" id="btn-dict-add">+ Додати</button>
+        <button class="btn btn-ghost btn-sm" id="btn-dict-import">📥 Імпорт (додати записи)</button>
+        <button class="btn btn-ghost btn-sm" id="btn-dict-export">📤 Експорт</button>
+      </div>
+    </div>
+    <div class="section-body">
+      <div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">
+        Єдиний довідник для всіх типів перекладу. Записи <b>«По-батькові»</b> тут — те саме, що на вкладці
+        «По-батькові» (винятки зі списку; правила відмінювання за суфіксами лишаються там же й тут не показуються).
+        <span id="dictCount" style="color:var(--muted);"></span>
+      </div>
+    </div>
+    <div class="section-body" style="overflow-x:auto;">
+      <table class="dict-table">
+        <thead><tr><th>Тип</th><th>Оригінал (рос)</th><th>Переклад (укр)</th><th>Стать</th><th></th></tr></thead>
+        <tbody id="dictBody"></tbody>
+      </table>
+      <div class="empty-hint" id="dictEmpty" style="display:none">Довідник порожній.</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===== TAB: PATRONYMICS ===== -->
+<div class="panel" id="panel-patr">
+
+  <div class="info-box">
+    <b>Як працює автогенерація:</b><br>
+    Програма знаходить по-батькові у полях <b>GIVN</b> та <b>NAME</b> (слова на «-ович/-евич/-овна/-евна/-овича/-івна»),
+    перекладає корінь імені через словник імен, потім додає правильний українській суфікс.<br>
+    Ручний словник нижче має <b>пріоритет</b> над автогенерацією.
+  </div>
+
+  <!-- TESTER -->
+  <div class="section">
+    <div class="section-head">🧪 Тестування автогенерації</div>
+    <div class="section-body">
+      <div class="row" style="margin-bottom:12px;">
+        <input type="text" id="patrTestInput" class="search-input" style="width:220px;" placeholder="Іванович / Петрівна…">
+        <select id="patrTestSex" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 10px;font-size:.85rem;">
+          <option value="M">Чоловічий</option>
+          <option value="F">Жіночий</option>
+        </select>
+      </div>
+      <div id="patrTestResult" class="patr-demo" style="min-height:38px;"></div>
+    </div>
+  </div>
+
+  <!-- AUTO-GENERATE PREVIEW -->
+  <div class="section">
+    <div class="section-head">
+      ⚡ Автогенерований словник (з поточного файлу)
+      <button class="btn btn-orange btn-sm" id="btn-patr-scan">🔍 Скан файлу</button>
+    </div>
+    <div class="section-body">
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;">
+        Ручні по-батькові (з позначкою «ручний» нижче) редагуються на вкладці
+        <b>«📖 Довідник»</b> — там тип «По-батькові» показаний разом з усім іншим.
+      </div>
+      <div id="patrAutoList" class="patr-demo" style="min-height:40px;color:var(--muted);font-size:.82rem;">
+        Завантаж файл і натисни «Скан файлу» для автовизначення по-батькові.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</div>
+
+<!-- ===== TAB: NAMES ===== -->
+<div class="panel" id="panel-names">
+  <div class="info-box">
+    <b>Як це працює:</b><br>
+    На відміну від по-батькові, для імен немає граматичного правила — лише довідник.
+    Якщо слова нема в довіднику, воно лишається неперекладеним і потрапляє у «Непереведені».
+  </div>
+
+  <div class="section">
+    <div class="section-head">🧪 Перевірка слова</div>
+    <div class="section-body">
+      <div class="row" style="margin-bottom:12px;">
+        <input type="text" id="nameTestInput" class="search-input" style="width:220px;" placeholder="Николай / Мария…">
+      </div>
+      <div id="nameTestResult" class="patr-demo" style="min-height:38px;"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      ⚡ Скан файлу (усі імена)
+      <button class="btn btn-orange btn-sm" id="btn-name-scan">🔍 Скан файлу</button>
+    </div>
+    <div class="section-body">
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;">
+        Записи «ручний» редагуються на вкладці <b>«📖 Довідник»</b> (тип «Ім'я»).
+      </div>
+      <div id="nameAutoList" class="patr-demo" style="min-height:40px;color:var(--muted);font-size:.82rem;">
+        Завантаж файл і натисни «Скан файлу», щоб побачити всі імена з файлу.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: SURNAMES ===== -->
+<div class="panel" id="panel-surnames">
+  <div class="info-box">
+    <b>Як це працює:</b><br>
+    Прізвища перекладаються ЛИШЕ за довідником — без вгадування, щоб не «виправляти»
+    граматично офіційне прізвище (наприклад, Жорновой не стає самовільно Жорновий).
+  </div>
+
+  <div class="section">
+    <div class="section-head">🧪 Перевірка слова</div>
+    <div class="section-body">
+      <div class="row" style="margin-bottom:12px;">
+        <input type="text" id="surnTestInput" class="search-input" style="width:220px;" placeholder="Иванченко / Дацько…">
+      </div>
+      <div id="surnTestResult" class="patr-demo" style="min-height:38px;"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      ⚡ Скан файлу (усі прізвища)
+      <button class="btn btn-orange btn-sm" id="btn-surn-scan">🔍 Скан файлу</button>
+    </div>
+    <div class="section-body">
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;">
+        Записи «ручний» редагуються на вкладці <b>«📖 Довідник»</b> (тип «Прізвище»).
+      </div>
+      <div id="surnAutoList" class="patr-demo" style="min-height:40px;color:var(--muted);font-size:.82rem;">
+        Завантаж файл і натисни «Скан файлу», щоб побачити всі прізвища з файлу.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: PLACES ===== -->
+<div class="panel" id="panel-places">
+  <div class="info-box">
+    <b>Як це працює:</b><br>
+    Місця (PLAC, CITY, STAE, CTRY, ADDR) розбиваються по комі на окремі компоненти
+    (населений пункт, повіт, губернія, країна) — кожен компонент перекладається окремо за довідником.
+  </div>
+
+  <div class="section">
+    <div class="section-head">🧪 Перевірка слова</div>
+    <div class="section-body">
+      <div class="row" style="margin-bottom:12px;">
+        <input type="text" id="placeTestInput" class="search-input" style="width:260px;" placeholder="Полтавская губерния…">
+      </div>
+      <div id="placeTestResult" class="patr-demo" style="min-height:38px;"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      ⚡ Скан файлу (усі місця)
+      <button class="btn btn-orange btn-sm" id="btn-place-scan">🔍 Скан файлу</button>
+    </div>
+    <div class="section-body">
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;">
+        Записи «ручний» редагуються на вкладці <b>«📖 Довідник»</b> (тип «Місце»).
+      </div>
+      <div id="placeAutoList" class="patr-demo" style="min-height:40px;color:var(--muted);font-size:.82rem;">
+        Завантаж файл і натисни «Скан файлу», щоб побачити всі місця з файлу.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: REVIEW ===== -->
+<div class="panel" id="panel-review">
+  <div class="section">
+    <div class="section-head">
+      🔍 Змінені рядки після перекладу
+      <div class="row">
+        <span id="review-count" style="color:var(--muted);font-size:.82rem;"></span>
+        <button class="btn btn-success btn-sm" id="btn-review-download">⬇ Завантажити .ged</button>
+      </div>
+    </div>
+    <div class="diff-filter">
+      <label><input type="checkbox" id="flt-names" checked> Імена/По-батькові</label>
+      <label><input type="checkbox" id="flt-surn" checked> Прізвища</label>
+      <label><input type="checkbox" id="flt-places" checked> Місця</label>
+      <label><input type="checkbox" id="flt-dates" checked> Дати</label>
+      <label><input type="checkbox" id="flt-other" checked> Інші</label>
+      <label title="Показати лише рядки, перекладені автотранслітерацією без підтвердження словником"><input type="checkbox" id="flt-auto-only"> Лише «авто» (потребують перевірки)</label>
+      <input type="text" id="reviewSearch" class="search-input" style="width:180px;margin-left:auto;" placeholder="Пошук у рядках…">
+    </div>
+    <div class="diff-scroll">
+      <table class="diff-table" id="diffTable">
+        <thead><tr><th style="width:42px">#</th><th style="width:60px">Тег</th><th>Оригінал</th><th>Переклад</th></tr></thead>
+        <tbody id="diffBody"></tbody>
+      </table>
+      <div class="empty-hint" id="diffEmpty" style="display:none;">Немає змінених рядків або переклад ще не виконано.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: UNTRANSLATED ===== -->
+<div class="panel" id="panel-untrans">
+  <div class="section">
+    <div class="section-head">
+      ⚠️ Непереведені слова
+      <div class="row">
+        <span id="untrans-count" style="color:var(--muted);font-size:.82rem;"></span>
+        <button class="btn btn-primary btn-sm" id="btn-untrans-all">+ Всі до словника</button>
+      </div>
+    </div>
+    <div class="section-body" style="padding:10px 16px;">
+      <div style="font-size:.82rem;color:var(--muted);margin-bottom:10px;">
+        Введи переклад і натисни «До словника» — слово збережеться і буде перекладене при наступному запуску.
+        Якщо слово пишеться однаково українською й російською — просто тисни «= Однаково», без набору тексту.
+      </div>
+    </div>
+    <div style="overflow-x:auto;max-height:560px;overflow-y:auto;">
+      <table class="untrans-table" id="untransTable">
+        <thead><tr><th>Слово (рос)</th><th>Зустрічається</th><th>Контекст</th><th>FamilySearch</th><th>Переклад (укр)</th><th>Тип</th><th></th></tr></thead>
+        <tbody id="untransBody"></tbody>
+      </table>
+      <div class="empty-hint" id="untransEmpty" style="display:none;">Непереведених слів не знайдено — відмінний результат!</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: ANALYSIS ===== -->
+<div class="panel" id="panel-analysis">
+  <div class="section">
+    <div class="section-head">
+      📊 Аналіз GEDCOM
+      <div class="row">
+        <span id="analysis-source-label" style="color:var(--muted);font-size:.8rem;"></span>
+        <button class="btn btn-primary btn-sm" id="btn-run-analysis">🔍 Аналізувати файл</button>
+        <button class="btn btn-success btn-sm" id="btn-analysis-report">📄 Звіт (.txt)</button>
+      </div>
+    </div>
+    <div class="section-body">
+      <div style="font-size:.8rem;color:var(--muted);">
+        Аналізується перекладений файл, якщо переклад вже виконано, інакше — оригінал.
+        На великих файлах (десятки тисяч рядків) аналіз займає до секунди.
+      </div>
+    </div>
+  </div>
+
+  <div class="empty-hint" id="analysisEmpty">Натисни «Аналізувати файл», щоб побачити статистику, перевірку структури, дублікати та частотний аналіз.</div>
+
+  <div id="analysisResults" style="display:none;flex-direction:column;gap:16px;">
+
+    <div class="section">
+      <div class="section-head">📈 Статистика</div>
+      <div class="section-body">
+        <div class="stats" id="statsGrid" style="display:grid;"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">🩺 Перевірка структури <span id="issues-count" style="color:var(--muted);font-size:.8rem;font-weight:400;"></span></div>
+      <div class="section-body" id="issuesList" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        ✍️ Орфографічні помилки <span id="spelling-count" style="color:var(--muted);font-size:.8rem;font-weight:400;"></span>
+      </div>
+      <div style="padding:0 18px;margin-top:-8px;font-size:.75rem;color:var(--muted);">Завжди за оригіналом файлу (рос.) — довідник + прості правила (латиниця серед кирилиці, цифри, потрійні літери тощо).</div>
+      <div class="section-body" id="spellingList" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        ❓ Є ім'я й прізвище, немає по-батькові <span id="missing-patr-count" style="color:var(--muted);font-size:.8rem;font-weight:400;"></span>
+      </div>
+      <div style="padding:0 18px;margin-top:-8px;font-size:.75rem;color:var(--muted);">Завжди за оригіналом файлу (рос.).</div>
+      <div class="section-body" id="missingPatrList" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        👥 Ймовірні дублікати <span id="dups-count" style="color:var(--muted);font-size:.8rem;font-weight:400;"></span>
+        <button class="btn btn-ghost btn-sm" id="btn-toggle-confirmed-dups" style="display:none;"></button>
+        <button class="btn btn-ghost btn-sm" id="btn-toggle-dismissed-dups" style="display:none;"></button>
+        <button class="btn btn-ghost btn-sm" id="btn-share-dups" style="display:none;">📤 Поділитися</button>
+        <button class="btn btn-danger btn-sm" id="btn-share-confirmed-dups" style="display:none;">📤 Поділитися «Дублікати»</button>
+      </div>
+      <div class="section-body" id="dupsList" style="max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
+      <div class="section-body" id="dupsConfirmedList" style="display:none;max-height:400px;overflow-y:auto;flex-direction:column;gap:8px;border-top:1px dashed var(--border);margin-top:4px;padding-top:12px;"></div>
+      <div class="section-body" id="dupsDismissedList" style="display:none;max-height:400px;overflow-y:auto;flex-direction:column;gap:8px;border-top:1px dashed var(--border);margin-top:4px;padding-top:12px;"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        🌳 Обриви дерева <span id="treebreaks-count" style="color:var(--muted);font-size:.8rem;font-weight:400;"></span>
+        <button class="btn btn-ghost btn-sm" id="btn-copy-fsftids" style="display:none;">📋 Копіювати список FSFTID</button>
+      </div>
+      <div class="section-body">
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">
+          Особи з підтвердженим FamilySearch ID, у яких у файлі немає запису про батьків (або посилання на батьків
+          розірване) — саме тут завантажене дерево закінчується. Перейди за FSFTID і дозавантаж конкретно цю гілку,
+          замість повторного експорту всього дерева.
+        </div>
+        <div id="treeBreaksList" style="max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">🔤 Частотний аналіз</div>
+      <div class="section-body">
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:10px;">
+          На екрані — топ-25 у кожній категорії (для наочності графіка). Повні списки
+          <b>усіх</b> унікальних прізвищ, імен і населених пунктів — у кнопці «Завантажити звіт» нижче.
+        </div>
+        <div class="freq-cols">
+          <div class="freq-col">
+            <h4>Прізвища <span id="freq-uniq-surn" style="color:var(--muted);font-weight:400;"></span></h4>
+            <div id="freqSurnames"></div>
+          </div>
+          <div class="freq-col">
+            <h4>Імена <span id="freq-uniq-givn" style="color:var(--muted);font-weight:400;"></span></h4>
+            <div id="freqGivens"></div>
+          </div>
+          <div class="freq-col">
+            <h4>Населені пункти <span id="freq-uniq-plac" style="color:var(--muted);font-weight:400;"></span></h4>
+            <div id="freqPlaces"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== TAB: SEARCH ===== -->
+<div class="panel" id="panel-search">
+  <div class="section">
+    <div class="section-head">🔎 Пошук по GEDCOM</div>
+    <div class="section-body">
+      <div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;">
+        Шукає в перекладеному файлі, якщо переклад вже виконано, інакше — в оригіналі.
+        Знайдений запис можна відкрити й відредагувати прямо тут.
+      </div>
+      <div id="searchEmpty" class="empty-hint">Спочатку завантаж GEDCOM файл на вкладці «Переклад».</div>
+      <div id="searchControls" style="display:none;flex-direction:column;gap:10px;">
+        <div class="row">
+          <input type="text" class="search-input" id="searchQuery" style="width:260px;" placeholder="Прізвище, ім'я, місце, _FSFTID…">
+          <label style="display:flex;align-items:center;gap:4px;font-size:.8rem;"><input type="radio" name="searchMode" value="persons" checked> По особах</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:.8rem;"><input type="radio" name="searchMode" value="raw"> У всіх рядках (з нотатками)</label>
+        </div>
+        <div id="search-count" style="color:var(--muted);font-size:.8rem;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="searchResults" style="display:flex;flex-direction:column;gap:6px;"></div>
+
+  <div class="section" id="recordEditor" style="display:none;flex-direction:column;">
+    <div class="section-head" id="recordEditorTitle">Редагування запису</div>
+    <div class="section-body" style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:.78rem;color:var(--muted);">
+        Це сирі рядки GEDCOM для цього запису. Редагуй обережно — перший рядок (0 @ID@ ТИП) чіпати не варто.
+      </div>
+      <textarea class="preview-area" id="recordEditorArea" rows="14" style="font-family:monospace;"></textarea>
+      <div class="row">
+        <button class="btn btn-primary btn-sm" id="btn-record-save">💾 Зберегти зміни</button>
+        <button class="btn btn-ghost btn-sm" id="btn-record-cancel">Скасувати</button>
+      </div>
+      <div id="searchSaveNote" style="display:none;color:var(--green);font-size:.82rem;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: COMPARE ===== -->
+<div class="panel" id="panel-compare">
+  <div class="section">
+    <div class="section-head">⚖️ Порівняння двох GEDCOM</div>
+    <div class="section-body" style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:.8rem;color:var(--muted);">
+        Порівнює основний файл (з вкладки «Переклад») із другим файлом. Збіг визначається за
+        <code>_FSFTID</code>, якщо він є, інакше за прізвищем+ім'ям+роком народження.
+      </div>
+      <div class="row">
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer;">
+          📁 Обрати другий файл
+          <input type="file" id="cmpFileInput" accept=".ged,.gedcom,.txt" style="display:none;">
+        </label>
+        <span id="cmpFileLabel" style="color:var(--muted);font-size:.82rem;">Файл не обрано</span>
+        <button class="btn btn-primary btn-sm" id="btn-run-compare" disabled>🔍 Порівняти</button>
+        <button class="btn btn-success btn-sm" id="btn-compare-report">📄 Звіт (.txt)</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="cmpEmpty" class="empty-hint">Обери другий файл і натисни «Порівняти».</div>
+
+  <div id="cmpResults" style="display:none;flex-direction:column;gap:16px;">
+    <div class="section">
+      <div class="section-body" id="cmp-summary" style="font-size:.85rem;"></div>
+    </div>
+    <div class="section">
+      <div class="section-head">➕ Тільки у файлі A (основний)</div>
+      <div class="section-body" id="cmpOnlyA" style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+    <div class="section">
+      <div class="section-head">➕ Тільки у файлі B (другий)</div>
+      <div class="section-body" id="cmpOnlyB" style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+    <div class="section">
+      <div class="section-head">🔀 Відмінності у спільних записах</div>
+      <div class="section-body" id="cmpDiffering" style="max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: FAMILYSEARCH REPORT ===== -->
+<div class="panel" id="panel-fsreport">
+  <div class="section">
+    <div class="section-head">📇 Звіт FamilySearch</div>
+    <div class="section-body" style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:.8rem;color:var(--muted);">
+        Таблиця осіб з посиланням на FamilySearch, готова для перегляду тут або збереження як окремий HTML-файл
+        (з робочим пошуком і фільтрами навіть без цього застосунку).
+      </div>
+      <div id="fsrEmpty" class="empty-hint">Спочатку завантаж GEDCOM файл на вкладці «Переклад».</div>
+      <div id="fsrControls" style="display:none;gap:14px;align-items:center;flex-wrap:wrap;">
+        <div class="row" style="gap:16px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem;">
+            <input type="radio" name="fsrSource" value="original" checked> Оригінал
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem;">
+            <input type="radio" name="fsrSource" id="fsr-source-translated" value="translated"> Перекладений (укр)
+          </label>
+        </div>
+        <button class="btn btn-primary btn-sm" id="btn-fsr-generate">🔍 Сформувати звіт</button>
+        <button class="btn btn-success btn-sm" id="btn-fsr-download" disabled>⬇ Завантажити HTML</button>
+        <span id="fsr-count" style="color:var(--muted);font-size:.82rem;"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" id="fsrPreviewSection" style="display:none;">
+    <div class="section-head">
+      Перегляд
+      <div class="row">
+        <input type="text" class="search-input" id="fsrSearch" style="width:220px;" placeholder="Пошук по всіх колонках…">
+        <span id="fsr-visible-count" style="color:var(--muted);font-size:.8rem;"></span>
+      </div>
+    </div>
+    <div style="overflow-x:auto;max-height:560px;overflow-y:auto;">
+      <table class="dict-table">
+        <thead><tr><th>_FSFTID</th><th>Ім'я</th><th>По-батькові</th><th>Прізвище</th><th>Дата народження</th><th>Місце народження</th></tr></thead>
+        <tbody id="fsrBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: TREE ===== -->
+<div class="panel" id="panel-tree">
+  <div class="section">
+    <div class="section-head">🌳 Родинне дерево за FSFTID</div>
+    <div class="section-body" style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:.8rem;color:var(--muted);">
+        Знайди людину за _FSFTID або іменем — вона стане коренем дерева. Саме дерево відкривається в
+        окремому вікні: чоловік і дружина поруч, діти під ними, батьки зверху; гілки можна згортати й
+        розгортати, дерево масштабується (в т.ч. двома пальцями на планшеті). Клік по будь-якій картці
+        переносить на сторінку цієї особи на FamilySearch за її _FSFTID.
+      </div>
+      <div id="treeEmpty" class="empty-hint">Спочатку завантаж GEDCOM файл на вкладці «Переклад».</div>
+      <div id="treeControls" style="display:none;">
+        <div class="row" style="gap:16px;flex-wrap:wrap;margin-bottom:10px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem;">
+            <input type="radio" name="treeSource" id="treeSourceOrig" value="original" checked> Оригінал
+          </label>
+          <label id="treeSourceTranslatedLabel" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem;">
+            <input type="radio" name="treeSource" id="treeSourceTranslated" value="translated"> Перекладений (укр)
+          </label>
+        </div>
+        <div class="row" style="margin-bottom:8px;">
+          <input type="text" class="search-input" id="treeSearchInput" style="width:260px;" placeholder="FSFTID або ім'я…">
+        </div>
+        <div id="treeSearchResults" style="display:flex;flex-direction:column;gap:4px;margin-bottom:14px;"></div>
+        <div class="row" style="gap:14px;flex-wrap:wrap;align-items:center;padding:12px;background:var(--surface2);border:2px solid var(--border);border-radius:10px;">
+          <div id="treeSelectedPerson" style="flex:1;min-width:200px;font-size:.9rem;"><span class="muted">Особу ще не обрано — знайди її вище.</span></div>
+          <button class="btn btn-primary" id="treeOpenBtn" type="button" disabled>🌳 Відкрити дерево</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- hidden file inputs -->
+<input type="file" id="dictImportInput" accept=".json" style="display:none">
+
+
+<script type="module" src="js/app.js"></script>
+<script>
+  // Реєструємо Service Worker лише коли є підтримка і сторінка обслуговується
+  // через http(s) — на GitHub Pages це працює, при відкритті напряму з диска (file://) SW недоступний.
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW реєстрація не вдалась:', err));
+    });
+  }
+</script>
+</body>
+</html>
