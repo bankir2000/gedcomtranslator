@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Тест family-chart</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/family-chart@0.9.0/dist/styles/family-chart.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #fff; }
+  #FamilyChart { width: 100vw; height: 100vh; }
+  #log { position: fixed; top: 0; left: 0; right: 0; background: #ffe; color: #900; font: 12px monospace;
+         padding: 6px; white-space: pre-wrap; z-index: 999; max-height: 40vh; overflow: auto; }
+</style>
+</head>
+<body>
+<div id="log">Завантаження…</div>
+<div id="FamilyChart"></div>
+
+<script type="module">
+  const log = document.getElementById('log');
+  function print(msg) { log.textContent += '\n' + msg; }
+
+  window.addEventListener('error', (e) => print('❌ ПОМИЛКА: ' + e.message));
+
+  try {
+    print('Імпортую family-chart з CDN…');
+    const f3 = await import('https://cdn.jsdelivr.net/npm/family-chart@0.9.0/+esm');
+    print('✅ Бібліотека завантажена: ' + Object.keys(f3).join(', '));
+
+    const data = [
+      { "id": "1", "data": { "first name": "John", "last name": "Doe", "birthday": "1980", "gender": "M" }, "rels": { "spouses": ["2"], "children": ["3"] } },
+      { "id": "2", "data": { "first name": "Jane", "last name": "Doe", "birthday": "1982", "gender": "F" }, "rels": { "spouses": ["1"], "children": ["3"] } },
+      { "id": "3", "data": { "first name": "Bob", "last name": "Doe", "birthday": "2005", "gender": "M" }, "rels": { "parents": ["1", "2"] } }
+    ];
+
+    print('Створюю дерево…');
+    const f3Chart = f3.createChart('#FamilyChart', data);
+    print('✅ createChart виконано.');
+
+    const f3Card = f3Chart.setCardHtml().setCardDim({ width: 210, height: 115 });
+    f3Card.setCardInnerHtmlCreator((d) => {
+      const p = (d && d.data && d.data.data) || {};
+      return `<div style="width:100%;height:100%;box-sizing:border-box;display:flex;flex-direction:column;
+        align-items:center;justify-content:center;border:2px solid #333;border-radius:8px;background:#fff;
+        white-space:normal;word-break:normal;overflow-wrap:break-word;text-align:center;padding:6px;">
+        <b>${p['first name'] || ''} ${p['last name'] || ''}</b>
+        <span>${p['birthday'] || ''}</span>
+      </div>`;
+    });
+    print('✅ setCardHtml + setCardInnerHtmlCreator виконано.');
+
+    f3Card.setOnCardClick((e, d) => print('🖱️ Клік по картці: ' + JSON.stringify(d && d.data ? d.data : d)));
+    print('✅ setOnCardClick виконано.');
+
+    f3Chart.updateTree({ initial: true, tree_position: 'fit' });
+    print('✅ updateTree виконано — якщо нижче видно 3 картки з рамкою (John/Jane/Bob), все працює.');
+  } catch (err) {
+    print('❌ ВИНЯТОК: ' + (err && err.stack ? err.stack : err));
+  }
+</script>
+</body>
+</html>

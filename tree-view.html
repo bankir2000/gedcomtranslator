@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<!-- user-scalable=no навмисно: масштабуванням дерева керує сама бібліотека
+     (пінч-жест і колесо миші), а не браузерний зум сторінки — інакше вони
+     конфліктують одне з одним, особливо помітно на планшетах. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Родинне дерево · GEDCOM Перекладач Pro</title>
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/family-chart@0.9.0/dist/styles/family-chart.css">
+<link rel="stylesheet" href="css/tree-view.css?v=16">
+</head>
+<body>
+
+<div id="treeViewToolbar">
+  <button class="btn btn-ghost btn-sm" id="closeBtn" type="button" title="Закрити">✕</button>
+  <div id="treeViewTitle">
+    <div id="rootPersonLabel" class="tv-root-label"></div>
+    <div class="tv-sub">
+      <span id="nodeCount"></span>
+      <span id="truncatedBadge" class="auto-badge" style="display:none;" title="Дерево завелике — показано не всіх родичів">обрізано</span>
+    </div>
+  </div>
+  <div id="treeViewSearchWrap">
+    <input type="text" id="treeViewSearch" class="search-input" placeholder="Перейти до особи: FSFTID або ім'я…" autocomplete="off">
+    <div id="treeViewSearchResults"></div>
+  </div>
+  <button class="btn btn-ghost btn-sm" id="modeToggleBtn" type="button" title="Перемкнути вигляд">🌀 Віяло</button>
+  <div id="treeFanGenWrap" title="Поколінь предків" style="display:none;">
+    <span class="tv-fan-gen-label">Поколінь:</span>
+    <input type="range" id="fanGenSlider" min="2" max="10" value="6" step="1">
+    <span id="fanGenValue">6</span>
+  </div>
+  <div id="treeZoomWrap" title="Масштаб">
+    <button class="btn btn-ghost btn-sm" id="zoomOutBtn" type="button">−</button>
+    <input type="range" id="treeZoomSlider" min="-15" max="15" value="0" step="1">
+    <button class="btn btn-ghost btn-sm" id="zoomInBtn" type="button">+</button>
+  </div>
+  <button class="btn btn-ghost btn-sm" id="themeBtn" type="button" title="Тема">☀️</button>
+  <button class="btn btn-ghost btn-sm" id="debugBtn" type="button" title="Діагностика">🐞</button>
+</div>
+
+<div id="fanHint" class="empty-hint" style="display:none;position:fixed;left:0;right:0;bottom:8px;padding:6px 16px;font-size:.72rem;pointer-events:none;">
+  Коротке торкання — перефокус на цю особу · довге утримання — відкрити на FamilySearch
+</div>
+
+<div id="treeViewEmpty" class="empty-hint" style="display:none;">
+  Дані дерева не знайдено в цій вкладці. Поверніться на вкладку «Дерево» в основному вікні застосунку
+  і натисніть «Відкрити дерево» ще раз.
+</div>
+
+<div id="treeChartContainer"></div>
+
+<div id="toast"></div>
+
+<script type="module" src="js/treeview/treeViewApp.js?v=16"></script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+/* ===================== ВІКНО РОДИННОГО ДЕРЕВА ===================== */
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden; /* панорамування/зум всередині керує сама бібліотека */
+  background: var(--bg);
+  color: var(--text);
+}
+
+#treeViewToolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border-bottom: 2px solid var(--border);
+  flex-wrap: wrap;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 20;
+}
+
+#treeViewTitle { min-width: 140px; }
+.tv-root-label { font-weight: 800; font-size: .95rem; line-height: 1.2; }
+.tv-sub { font-size: .72rem; color: var(--muted); display: flex; gap: 8px; align-items: center; margin-top: 2px; }
+
+#treeViewSearchWrap { position: relative; flex: 1 1 220px; min-width: 180px; max-width: 360px; }
+#treeViewSearch {
+  width: 100%; box-sizing: border-box;
+}
+
+#treeZoomWrap { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+#treeZoomWrap .btn-sm { width: 32px; height: 32px; padding: 0; font-size: 18px; line-height: 1; }
+#treeZoomSlider { width: 90px; accent-color: var(--accent, #4f8aff); }
+
+#treeFanGenWrap { display: flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: .75rem; color: var(--muted); }
+#treeFanGenWrap #fanGenSlider { width: 90px; accent-color: var(--accent, #4f8aff); }
+#treeFanGenWrap #fanGenValue { min-width: 16px; text-align: center; color: var(--text); font-weight: 700; }
+#treeViewSearchResults {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: var(--surface); border: 2px solid var(--border); border-radius: 10px;
+  max-height: 320px; overflow-y: auto; z-index: 30; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 2px; padding: 6px;
+}
+#treeViewSearchResults:empty { display: none; padding: 0; border: none; }
+.tree-search-item {
+  padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: .85rem;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  min-height: 40px; /* зручний розмір для тапу на планшеті */
+}
+.tree-search-item:hover, .tree-search-item:active { background: var(--row-hover); }
+
+/* ДІАГНОСТИКОЮ ПІДТВЕРДЖЕНО: family-chart створює <svg> без явного
+   width/height (ні атрибутів, ні inline-стилів) — тож браузер підставляє
+   свій дефолт для "порожнього" SVG: 300×150px. Через це лінії зв'язків
+   (які малюються всередині цього svg) були видні лише в крихітному
+   куточку контейнера, а картки (окремі HTML-елементи поверх) — по всьому
+   контейнеру, тому здавалось, що лінії "губляться" чи "непостійні"
+   (насправді вони завжди були в тому самому маленькому куточку 300×150,
+   просто він потрапляв у різні місця екрана залежно від панорамування).
+   Примусово розтягуємо svg на весь контейнер. */
+#treeChartContainer svg {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+#treeChartContainer {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  /* top задає JS (js/treeview/treeViewApp.js) — точна висота тулбару,
+     виміряна на льоту, а не вгадане число (тулбар може переноситись на
+     два рядки на вузьких екранах) */
+  touch-action: none; /* жести пінч-зуму/панорамування віддаємо d3, не браузеру */
+  background: var(--bg);
+  overflow: hidden;
+}
+
+#treeViewEmpty {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  padding-top: 58px;
+  display: flex; align-items: center; justify-content: center; text-align: center; padding: 40px;
+}
+
+#toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px);
+  background: var(--surface3); color: var(--text); border: 2px solid var(--border);
+  padding: 10px 18px; border-radius: 999px; font-size: .85rem; box-shadow: var(--shadow);
+  opacity: 0; pointer-events: none; transition: all .25s; z-index: 50; max-width: 90vw; text-align: center;
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* Лінії родинних зв'язків (SVG path/line всередині дерева) — бібліотека за
+   замовчуванням розрахована на темний фон (світлі лінії), тому в денній темі
+   вони губилися на білому. Прив'язуємо колір до тієї ж змінної, що й текст
+   застосунку — вона сама перемикається між темами. */
+#treeChartContainer svg path,
+#treeChartContainer svg line {
+  stroke: var(--text) !important;
+  opacity: .55;
+}
+
+/* Власна розмітка картки особи (замість вбудованого шаблону family-chart —
+   той не показував рамку надійно). Ім'я й кожна дата — на окремому рядку. */
+.tv-card {
+  width: 100%; height: 100%; box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; padding: 6px 8px; text-align: center;
+  background: var(--surface); border: 2px solid var(--border); border-radius: 8px;
+  font-size: 12px; line-height: 1.2; color: var(--text); cursor: pointer;
+}
+.tv-card-name {
+  font-weight: 700; white-space: normal; word-break: normal; overflow-wrap: break-word;
+}
+.tv-card-line { font-size: 11px; color: var(--muted); }
+.tv-card-main { border-color: #e0a63c; border-width: 3px; box-shadow: 0 0 0 2px rgba(224,166,60,.35); }
+.tv-card-m { border-left: 5px solid #2d5fa8; }
+.tv-card-f { border-left: 5px solid #a83d63; }
+.tv-card-u { border-left: 5px solid #777; }
+
+@media (max-width: 640px) {
+  #treeViewToolbar { padding: 8px; gap: 8px; }
+  .tv-root-label { font-size: .85rem; }
+  #treeViewSearchWrap { flex-basis: 100%; order: 3; max-width: none; }
+}
