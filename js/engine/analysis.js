@@ -23,7 +23,7 @@ export function buildIndex(rawContent) {
       if (m0) {
         const [, id, tag] = m0;
         if (tag === 'INDI') {
-          cur = { type: 'INDI', id, name: '', givn: '', surn: '', sex: '', birt: {}, deat: {}, famc: [], fams: [], fsftid: '' };
+          cur = { type: 'INDI', id, name: '', givn: '', surn: '', sex: '', birt: {}, deat: {}, famc: [], fams: [], fsftid: '', isAnchor: false };
           individuals.set(id, cur);
         } else if (tag === 'FAM') {
           cur = { type: 'FAM', id, husb: null, wife: null, chil: [], marr: {} };
@@ -53,6 +53,7 @@ export function buildIndex(rawContent) {
         else if (tag === 'FAMC') cur.famc.push(val.replace(/@/g, ''));
         else if (tag === 'FAMS') cur.fams.push(val.replace(/@/g, ''));
         else if (tag === '_FSFTID') cur.fsftid = val.trim();
+        else if (tag === '_ANCHOR') cur.isAnchor = val.trim().toUpperCase() === 'Y';
       } else if (level === 2) {
         if (event && tag === 'DATE') cur[event].date = val;
         else if (event && tag === 'PLAC') cur[event].plac = val;

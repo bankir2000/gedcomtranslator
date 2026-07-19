@@ -18,11 +18,13 @@ import { runSearch, saveEditor, closeEditor } from './ui/searchUI.js';
 import { initCompareTab, runCompare, downloadCompareReport } from './ui/compareUI.js';
 import { generateFsReport, downloadFsReport, runFsrFilter } from './ui/familysearchReportUI.js';
 import { searchTreePeople, openTreeWindow, refreshTreeSelection } from './ui/treeUI.js';
+import { initLivingPeopleUI, refreshMergeControls } from './ui/mergeUI.js';
 
 // ---- Ініціалізація стану ----
 initDicts();
 initTheme();
 initFileUI();
+initLivingPeopleUI();
 initWizard();
 initCompareTab();
 renderBackups();
@@ -38,10 +40,10 @@ document.querySelectorAll('.tab').forEach(btn => {
 });
 
 // ---- Вкладка «Переклад»: навігація майстра ----
-document.getElementById('btn-step1-next').addEventListener('click', () => goToStep(2));
+document.getElementById('btn-step1-next').addEventListener('click', () => { goToStep(2); refreshMergeControls(); });
 document.getElementById('btn-step2-back').addEventListener('click', () => goToStep(1));
 document.getElementById('btn-step3-back').addEventListener('click', () => goToStep(2));
-document.getElementById('btn-translate').addEventListener('click', runTranslation);
+document.getElementById('btn-translate').addEventListener('click', async () => { await runTranslation(); refreshMergeControls(); });
 document.getElementById('btn-clear').addEventListener('click', clearFile);
 document.getElementById('btn-download').addEventListener('click', downloadResult);
 

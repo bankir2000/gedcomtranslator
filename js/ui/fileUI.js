@@ -2,6 +2,7 @@
 import { state } from '../state.js';
 import { detectAndReadFile } from '../core/encoding.js';
 import { markReached, resetWizard } from './wizard.js';
+import { refreshMergeControls } from './mergeUI.js';
 
 let dropzone;
 
@@ -63,6 +64,7 @@ export async function loadFile(f) {
   // Файл готовий — розблоковуємо крок 2 майстра, але не перестрибуємо туди самі
   document.getElementById('btn-step1-next').disabled = false;
   markReached(2);
+  refreshMergeControls();
 }
 
 export function clearFile() {
@@ -76,4 +78,5 @@ export function clearFile() {
   document.getElementById('fileInput').value = '';
   document.getElementById('btn-step1-next').disabled = true;
   resetWizard();
+  refreshMergeControls();
 }

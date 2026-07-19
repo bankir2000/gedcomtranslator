@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Живі родичі · GEDCOM Перекладач Pro</title>
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/people-editor.css?v=1">
+</head>
+<body>
+
+<header class="pe-header">
+  <button class="btn btn-ghost btn-sm" id="closeBtn" type="button" title="Закрити">✕</button>
+  <div class="pe-title">
+    <h1>➕ Живі родичі (база)</h1>
+    <div class="pe-sub">Особи, яких FamilySearch не віддає через обмеження приватності для живих людей</div>
+  </div>
+  <button class="btn btn-ghost btn-sm" id="themeBtn" type="button" title="Тема">☀️</button>
+</header>
+
+<main class="pe-main">
+  <div class="pe-explainer">
+    Додай сюди живих родичів вручну. Кожна гілка має починатись з <b>«якоря»</b> — заглушки з
+    <code>_FSFTID</code> вже існуючої в основному дереві людини (зазвичай — останній відомий предок).
+    Живі особи прив'язуються до якорів (або одне до одного) як батько/мати. Готову базу можна зберегти
+    як окремий <code>.ged</code>-файл і пізніше об'єднати з основним деревом на вкладці «Переклад».
+  </div>
+
+  <div class="pe-toolbar">
+    <button class="btn btn-ghost btn-sm" id="btn-load-base" type="button">📂 Завантажити базу (.ged)</button>
+    <input type="file" id="fileInputBase" accept=".ged,.gedcom,.txt" style="display:none;">
+    <button class="btn btn-primary btn-sm" id="btn-save-base" type="button">💾 Зберегти як GEDCOM</button>
+    <button class="btn btn-ghost btn-sm" id="btn-clear-all" type="button">🗑 Очистити все</button>
+    <span class="pe-count" id="pe-count">0 осіб у базі</span>
+  </div>
+
+  <div class="pe-columns">
+    <section class="pe-section">
+      <h2>⚓ Додати якір (прив'язка до основного дерева)</h2>
+      <div class="pe-form">
+        <label>_FSFTID <span class="req">*</span>
+          <input type="text" id="anchorFsftid" placeholder="напр. GBBQ-9MV">
+        </label>
+        <label>Довідкова назва (лише для зручності тут, не впливає на об'єднання)
+          <input type="text" id="anchorLabel" placeholder="напр. Іван Петров Сидоров">
+        </label>
+        <button class="btn btn-primary btn-sm" id="btn-add-anchor" type="button">➕ Додати якір</button>
+      </div>
+    </section>
+
+    <section class="pe-section">
+      <h2>🧑 Додати живу особу</h2>
+      <div class="pe-form">
+        <div class="pe-row2">
+          <label>Ім'я <input type="text" id="pGiven" placeholder="Петро"></label>
+          <label>Прізвище <input type="text" id="pSurname" placeholder="Сидоров"></label>
+        </div>
+        <div class="pe-row2">
+          <label>Стать
+            <select id="pSex">
+              <option value="">—</option>
+              <option value="M">Чоловіча</option>
+              <option value="F">Жіноча</option>
+            </select>
+          </label>
+          <label>_FSFTID (якщо раптом уже є)
+            <input type="text" id="pFsftid" placeholder="необов'язково">
+          </label>
+        </div>
+        <div class="pe-row2">
+          <label>Дата народження <input type="text" id="pBirthDate" placeholder="напр. 12 MAR 1990"></label>
+          <label>Місце народження <input type="text" id="pBirthPlace" placeholder="необов'язково"></label>
+        </div>
+        <div class="pe-row2">
+          <label>Дата смерті <input type="text" id="pDeathDate" placeholder="якщо померли"></label>
+          <label>Місце смерті <input type="text" id="pDeathPlace" placeholder="необов'язково"></label>
+        </div>
+        <div class="pe-row2">
+          <label>Батько <select id="pFather"></select></label>
+          <label>Мати <select id="pMother"></select></label>
+        </div>
+        <button class="btn btn-primary btn-sm" id="btn-add-person" type="button">➕ Додати особу</button>
+      </div>
+    </section>
+  </div>
+
+  <section class="pe-section">
+    <h2>📋 Список осіб у базі</h2>
+    <div id="pe-list" class="pe-list"></div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<script type="module" src="js/peopleeditor/peopleEditorApp.js?v=1"></script>
+</body>
+</html>

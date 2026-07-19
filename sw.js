@@ -4,7 +4,7 @@
 // без ручного скидання кешу), а коли інтернету нема — віддається те, що в кеші.
 // Це той самий підхід, що і в інших польових PWA (мережа-спочатку для автооновлень).
 
-const CACHE_VERSION = 'gedcom-pro-v24';
+const CACHE_VERSION = 'gedcom-pro-v25';
 
 const PRECACHE_FILES = [
   './',
@@ -19,6 +19,7 @@ const PRECACHE_FILES = [
   './js/core/download.js',
   './js/core/dismissedDuplicates.js',
   './js/core/confirmedDuplicates.js',
+  './js/ui/mergeUI.js',
   './js/core/encoding.js',
   './js/core/language.js',
   './js/core/translit.js',
@@ -35,6 +36,8 @@ const PRECACHE_FILES = [
   './js/engine/duplicatesReportHtml.js',
   './js/engine/wordScan.js',
   './js/engine/spellCheck.js',
+  './js/engine/baseGedcom.js',
+  './js/engine/mergeBase.js',
   './js/engine/familyTree.js',
   './js/ui/analysisUI.js',
   './js/ui/backupUI.js',
@@ -80,12 +83,17 @@ self.addEventListener('fetch', event => {
   // потребує інтернету (тягне бібліотеку з CDN), тож немає сенсу її кешувати,
   // а будь-яке втручання SW тут тільки заважає бачити свіжі зміни під час
   // розробки. Пропускаємо ці запити повз SW — браузер обробляє їх сам,
-  // напряму мережею.
+  // напряму мережею. Редактор живих родичів (people-editor.html) сюди ж —
+  // це ще нова, нестабільна функція, простіше без кешування під час
+  // доопрацювань (хоча CDN їй і не потрібен).
   const url = new URL(req.url);
   if (/(^|\/)tree-view\.html$/.test(url.pathname) ||
       /(^|\/)tree-test\.html$/.test(url.pathname) ||
+      /(^|\/)people-editor\.html$/.test(url.pathname) ||
       url.pathname.includes('/js/treeview/') ||
-      /(^|\/)css\/tree-view\.css$/.test(url.pathname)) {
+      url.pathname.includes('/js/peopleeditor/') ||
+      /(^|\/)css\/tree-view\.css$/.test(url.pathname) ||
+      /(^|\/)css\/people-editor\.css$/.test(url.pathname)) {
     return;
   }
 
