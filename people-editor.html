@@ -6,7 +6,7 @@
 <title>Живі родичі · GEDCOM Перекладач Pro</title>
 <link rel="icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="css/style.css">
-<link rel="stylesheet" href="css/people-editor.css?v=1">
+<link rel="stylesheet" href="css/people-editor.css?v=2">
 </head>
 <body>
 
@@ -54,9 +54,10 @@
       <div class="pe-form">
         <div class="pe-row2">
           <label>Ім'я <input type="text" id="pGiven" placeholder="Петро"></label>
-          <label>Прізвище <input type="text" id="pSurname" placeholder="Сидоров"></label>
+          <label>По батькові <input type="text" id="pPatronymic" placeholder="Іванович"></label>
         </div>
         <div class="pe-row2">
+          <label>Прізвище <input type="text" id="pSurname" placeholder="Сидоров"></label>
           <label>Стать
             <select id="pSex">
               <option value="">—</option>
@@ -64,17 +65,20 @@
               <option value="F">Жіноча</option>
             </select>
           </label>
+        </div>
+        <div class="pe-row2">
           <label>_FSFTID (якщо раптом уже є)
             <input type="text" id="pFsftid" placeholder="необов'язково">
           </label>
-        </div>
-        <div class="pe-row2">
           <label>Дата народження <input type="text" id="pBirthDate" placeholder="напр. 12 MAR 1990"></label>
-          <label>Місце народження <input type="text" id="pBirthPlace" placeholder="необов'язково"></label>
         </div>
         <div class="pe-row2">
+          <label>Місце народження <input type="text" id="pBirthPlace" placeholder="необов'язково"></label>
           <label>Дата смерті <input type="text" id="pDeathDate" placeholder="якщо померли"></label>
+        </div>
+        <div class="pe-row2">
           <label>Місце смерті <input type="text" id="pDeathPlace" placeholder="необов'язково"></label>
+          <label><!-- порожньо, для рівного вирівнювання сітки --></label>
         </div>
         <div class="pe-row2">
           <label>Батько <select id="pFather"></select></label>
@@ -93,6 +97,6 @@
 
 <div id="toast"></div>
 
-<script type="module" src="js/peopleeditor/peopleEditorApp.js?v=1"></script>
+<script type="module" src="js/peopleeditor/peopleEditorApp.js?v=2"></script>
 </body>
 </html>

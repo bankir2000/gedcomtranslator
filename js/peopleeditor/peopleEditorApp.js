@@ -57,7 +57,7 @@ function saveDraft() {
 
 function personDisplayLabel(p) {
   if (p.isAnchor) return `⚓ ${p.label || p.fsftid || '(якір без назви)'}`;
-  const name = `${p.given || ''} ${p.surname || ''}`.trim() || '(без імені)';
+  const name = `${p.given || ''} ${p.patronymic || ''} ${p.surname || ''}`.replace(/\s+/g, ' ').trim() || '(без імені)';
   const years = [p.birthDate, p.deathDate].filter(Boolean).join('–');
   return years ? `${name} (${years})` : name;
 }
@@ -137,6 +137,7 @@ document.getElementById('btn-add-person').addEventListener('click', () => {
     localId: 'p' + (nextLocalId++),
     isAnchor: false,
     given, surname,
+    patronymic: document.getElementById('pPatronymic').value.trim(),
     sex: document.getElementById('pSex').value,
     fsftid: document.getElementById('pFsftid').value.trim(),
     birthDate: document.getElementById('pBirthDate').value.trim(),
@@ -146,7 +147,7 @@ document.getElementById('btn-add-person').addEventListener('click', () => {
     fatherId: document.getElementById('pFather').value,
     motherId: document.getElementById('pMother').value,
   });
-  ['pGiven', 'pSurname', 'pFsftid', 'pBirthDate', 'pBirthPlace', 'pDeathDate', 'pDeathPlace'].forEach(id => document.getElementById(id).value = '');
+  ['pGiven', 'pPatronymic', 'pSurname', 'pFsftid', 'pBirthDate', 'pBirthPlace', 'pDeathDate', 'pDeathPlace'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('pSex').value = '';
   render();
   showToast('Особу додано.');
@@ -214,9 +215,15 @@ function importFromGedcom(text) {
       if (fam.husb && idRemap.has(fam.husb)) fatherId = idRemap.get(fam.husb);
       if (fam.wife && idRemap.has(fam.wife)) motherId = idRemap.get(fam.wife);
     }
+    // GIVN за конвенцією застосунку: перше слово — ім'я, решта — по батькові
+    const givnRaw = p.givn || (p.name || '').replace(/\//g, '').trim();
+    const givnParts = givnRaw.split(/\s+/).filter(Boolean);
+    const given = givnParts[0] || '';
+    const patronymic = givnParts.slice(1).join(' ');
     persons.push({
       localId, isAnchor: false,
-      given: p.givn || (p.name || '').replace(/\//g, '').split(' ')[0] || '',
+      given,
+      patronymic,
       surname: p.surn || (p.name.match(/\/([^/]*)\//) || [, ''])[1],
       sex: p.sex === 'M' || p.sex === 'F' ? p.sex : '',
       fsftid: p.fsftid || '',

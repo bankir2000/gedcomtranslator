@@ -16,7 +16,7 @@
   <div class="badge">GED</div>
   <div style="flex:1;min-width:0;">
     <h1 style="margin:0;">GEDCOM Перекладач Pro</h1>
-    <div style="font-size:.7rem;color:var(--muted);line-height:1.3;">v36 · зібрано 18.07.2026 19:41 · Банкір</div>
+    <div style="font-size:.7rem;color:var(--muted);line-height:1.3;">v36 · зібрано 19.07.2026 11:33 · Банкір</div>
   </div>
   <span class="sub">рос → укр</span>
   <button class="theme-toggle" id="themeBtn">☀️ День</button>
@@ -24,9 +24,10 @@
 
 <div class="tabs">
   <button class="tab active" data-tab="translate">📂 Переклад <span id="badge-backup" style="display:none;background:var(--orange);color:#fff;font-size:.68rem;padding:1px 6px;border-radius:999px;margin-left:4px;" title="Давно не було повного бекапу">!</span></button>
+  <button class="tab" data-tab="living">➕ Живі родичі</button>
   <button class="tab" data-tab="dict">📖 Довідник</button>
-  <button class="tab" data-tab="patr">👤 По-батькові</button>
   <button class="tab" data-tab="names">🙋 Імена</button>
+  <button class="tab" data-tab="patr">👤 По-батькові</button>
   <button class="tab" data-tab="surnames">👪 Прізвища</button>
   <button class="tab" data-tab="places">🏘️ Місця</button>
   <button class="tab" id="tab-review" data-tab="review">🔍 Перегляд змін <span id="badge-changes" style="display:none;background:var(--accent);color:#fff;font-size:.68rem;padding:1px 6px;border-radius:999px;margin-left:4px;"></span></button>
@@ -63,37 +64,6 @@
       <div class="stat"><div class="num" id="st-families">0</div><div class="lbl">Сімей</div></div>
       <div class="stat"><div class="num" id="st-lines">0</div><div class="lbl">Рядків</div></div>
       <div class="stat"><div class="num" id="st-replaced">0</div><div class="lbl">Замін</div></div>
-    </div>
-
-    <div class="section" id="livingSection" style="margin-top:16px;">
-      <div class="section-head">➕ Живі родичі (не входять у файл FamilySearch)</div>
-      <div class="section-body" style="display:flex;flex-direction:column;gap:12px;">
-        <div style="font-size:.8rem;color:var(--muted);">
-          FamilySearch не віддає в експорті живих людей. Заведи їх окремо в редакторі, збережи як
-          «базу» (.ged), а тут об'єднай цю базу з поточним файлом за <code>_FSFTID</code> останніх
-          відомих предків.
-        </div>
-        <div class="row" style="gap:10px;flex-wrap:wrap;">
-          <button class="btn btn-primary btn-sm" id="btn-open-people-editor" type="button">➕ Відкрити редактор живих родичів</button>
-        </div>
-        <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--border);padding-top:12px;">
-          <button class="btn btn-ghost btn-sm" id="btn-choose-base-file" type="button">📂 Обрати базу (.ged)</button>
-          <input type="file" id="baseFileInput" accept=".ged,.gedcom,.txt" style="display:none;">
-          <span id="baseFileLabel" style="font-size:.8rem;color:var(--muted);">Файл не обрано</span>
-        </div>
-        <div class="row" id="mergeTargetRow" style="gap:16px;flex-wrap:wrap;display:none;">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem;">
-            <input type="radio" name="mergeTarget" id="mergeTargetOrig" value="original" checked> В оригінал
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem;" id="mergeTargetTranslatedLabel">
-            <input type="radio" name="mergeTarget" id="mergeTargetTranslated" value="translated"> У переклад
-          </label>
-        </div>
-        <div class="row" style="gap:10px;flex-wrap:wrap;">
-          <button class="btn btn-success btn-sm" id="btn-do-merge" type="button" disabled>🧬 Об'єднати</button>
-        </div>
-        <div id="mergeResult" style="font-size:.82rem;"></div>
-      </div>
     </div>
 
     <div class="row" style="justify-content:flex-end;">
@@ -218,6 +188,40 @@
         </div>
         <button class="btn btn-sm" id="btn-clear-site-data" style="background:var(--red);color:#fff;">🗑 Очистити кеш сайту</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: LIVING (живі родичі) ===== -->
+<div class="panel" id="panel-living">
+  <div class="section">
+    <div class="section-head">➕ Живі родичі (не входять у файл FamilySearch)</div>
+    <div class="section-body" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:.8rem;color:var(--muted);">
+        FamilySearch не віддає в експорті живих людей. Заведи їх окремо в редакторі, збережи як
+        «базу» (.ged), а тут об'єднай цю базу з поточним файлом за <code>_FSFTID</code> останніх
+        відомих предків.
+      </div>
+      <div class="row" style="gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" id="btn-open-people-editor" type="button">➕ Відкрити редактор живих родичів</button>
+      </div>
+      <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--border);padding-top:12px;">
+        <button class="btn btn-ghost btn-sm" id="btn-choose-base-file" type="button">📂 Обрати базу (.ged)</button>
+        <input type="file" id="baseFileInput" accept=".ged,.gedcom,.txt" style="display:none;">
+        <span id="baseFileLabel" style="font-size:.8rem;color:var(--muted);">Файл не обрано</span>
+      </div>
+      <div class="row" id="mergeTargetRow" style="gap:16px;flex-wrap:wrap;display:none;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem;">
+          <input type="radio" name="mergeTarget" id="mergeTargetOrig" value="original" checked> В оригінал
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem;" id="mergeTargetTranslatedLabel">
+          <input type="radio" name="mergeTarget" id="mergeTargetTranslated" value="translated"> У переклад
+        </label>
+      </div>
+      <div class="row" style="gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-success btn-sm" id="btn-do-merge" type="button" disabled>🧬 Об'єднати</button>
+      </div>
+      <div id="mergeResult" style="font-size:.82rem;"></div>
     </div>
   </div>
 </div>

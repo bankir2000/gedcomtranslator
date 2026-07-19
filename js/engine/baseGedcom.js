@@ -56,7 +56,11 @@ export function buildBaseGedcom(persons) {
       if (p.fsftid) lines.push(`1 _FSFTID ${p.fsftid}`);
       lines.push('1 _ANCHOR Y');
     } else {
-      const nameVal = `${(p.given || '').trim()} /${(p.surname || '').trim()}/`;
+      // Конвенція застосунку: GIVN/NAME = "Ім'я По-батькові" одним полем
+      // (перше слово завжди ім'я, решта — по батькові) — так само, як інші
+      // звіти й переклад цього застосунку розбирають імена.
+      const givn = [p.given, p.patronymic].map(s => (s || '').trim()).filter(Boolean).join(' ');
+      const nameVal = `${givn} /${(p.surname || '').trim()}/`;
       lines.push(`1 NAME ${nameVal}`);
       if (p.sex) lines.push(`1 SEX ${p.sex}`);
       if (p.birthDate || p.birthPlace) {
