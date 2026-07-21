@@ -26,12 +26,24 @@ export function initLivingPeopleUI() {
       baseFileName = file.name;
       document.getElementById('baseFileLabel').textContent = `✅ ${file.name}`;
       document.getElementById('baseFileLabel').style.color = 'var(--green)';
+      document.getElementById('btn-edit-base').style.display = 'inline-flex';
       refreshMergeControls();
     } catch (err) {
       console.error(err);
       document.getElementById('baseFileLabel').textContent = '⚠️ Не вдалося прочитати файл';
       document.getElementById('baseFileLabel').style.color = 'var(--red)';
     }
+  });
+
+  document.getElementById('btn-edit-base').addEventListener('click', () => {
+    // Передаємо вміст бази редактору через sessionStorage (він сам розпізнає
+    // цей ключ при завантаженні й підвантажить осіб у список з можливістю
+    // редагування — так само, якби це зробили кнопкою "Завантажити базу" в
+    // самому редакторі, просто без зайвого кліку).
+    try {
+      sessionStorage.setItem('gedcom_living_base_pending_v1', baseFileContent);
+    } catch { /* не критично — просто відкриється порожній редактор */ }
+    window.open('people-editor.html', '_blank');
   });
 
   document.getElementById('btn-do-merge').addEventListener('click', doMerge);

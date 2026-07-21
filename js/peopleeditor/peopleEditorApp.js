@@ -37,10 +37,14 @@ function showToast(msg) {
 }
 
 // ---- Дані ----
-// persons: [{ localId, isAnchor, fsftid, label, given, surname, sex,
-//              birthDate, birthPlace, deathDate, deathPlace, fatherId, motherId }]
+// persons: [{ localId, isAnchor, fsftid, label, given, patronymic, surname,
+//              sex, birthDate, birthPlace, deathDate, deathPlace, fatherId, motherId }]
 let persons = [];
 let nextLocalId = 1;
+
+// Якщо не null — форми зараз у режимі РЕДАГУВАННЯ цього запису (не додавання нового).
+let editingAnchorId = null;
+let editingPersonId = null;
 
 function loadDraft() {
   try {
@@ -49,10 +53,18 @@ function loadDraft() {
     const data = JSON.parse(raw);
     if (Array.isArray(data.persons)) persons = data.persons;
     if (Number.isFinite(data.nextLocalId)) nextLocalId = data.nextLocalId;
-  } catch { /* пошкоджена чернетка — просто починаємо з чистого місця */ }
+  } catch (err) {
+    console.error('Не вдалося завантажити збережену чернетку:', err);
+    showToast('⚠️ Збережена чернетка пошкоджена — починаємо з чистого списку.');
+  }
 }
 function saveDraft() {
-  try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ persons, nextLocalId })); } catch { /* сховище переповнене — не критично, це лише чернетка */ }
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ persons, nextLocalId }));
+  } catch (err) {
+    console.error('Не вдалося зберегти чернетку:', err);
+    showToast('⚠️ Не вдалося зберегти список у цьому браузері (сховище переповнене чи заблоковане) — після оновлення сторінки список може зникнути.');
+  }
 }
 
 function personDisplayLabel(p) {
@@ -84,9 +96,13 @@ function renderList() {
       <div class="pe-person ${cls}">
         <span class="pe-person-main">${esc(personDisplayLabel(p))}</span>
         <span class="pe-person-meta">${p.fsftid && !p.isAnchor ? `FSFTID: ${esc(p.fsftid)} · ` : ''}${esc(parents.join(' · '))}</span>
+        <button class="pe-person-edit" data-id="${esc(p.localId)}" title="Редагувати">✏️</button>
         <button class="pe-person-del" data-id="${esc(p.localId)}" title="Видалити">🗑</button>
       </div>`;
   }).join('');
+  el.querySelectorAll('.pe-person-edit').forEach(btn => {
+    btn.addEventListener('click', () => startEdit(btn.dataset.id));
+  });
   el.querySelectorAll('.pe-person-del').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.id;
@@ -99,6 +115,8 @@ function renderList() {
         if (p.fatherId === id) p.fatherId = '';
         if (p.motherId === id) p.motherId = '';
       });
+      if (editingAnchorId === id) cancelAnchorEdit();
+      if (editingPersonId === id) cancelPersonEdit();
       render();
     });
   });
@@ -116,11 +134,44 @@ function renderParentSelects() {
   if (persons.some(p => p.localId === prevMother)) motherSel.value = prevMother;
 }
 
-// ---- Додавання якоря ----
+// Визначає, чи це якір, чи звичайна особа, і скеровує в потрібну форму редагування.
+function startEdit(id) {
+  const p = persons.find(x => x.localId === id);
+  if (!p) return;
+  if (p.isAnchor) startAnchorEdit(p); else startPersonEdit(p);
+}
+
+// ---- Редагування/додавання якоря ----
+function startAnchorEdit(p) {
+  editingAnchorId = p.localId;
+  document.getElementById('anchorFsftid').value = p.fsftid || '';
+  document.getElementById('anchorLabel').value = p.label || '';
+  document.getElementById('btn-add-anchor').textContent = '💾 Зберегти зміни';
+  document.getElementById('btn-cancel-anchor').style.display = 'inline-flex';
+  document.getElementById('anchorFsftid').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function cancelAnchorEdit() {
+  editingAnchorId = null;
+  document.getElementById('anchorFsftid').value = '';
+  document.getElementById('anchorLabel').value = '';
+  document.getElementById('btn-add-anchor').textContent = '➕ Додати якір';
+  document.getElementById('btn-cancel-anchor').style.display = 'none';
+}
+document.getElementById('btn-cancel-anchor').addEventListener('click', cancelAnchorEdit);
 document.getElementById('btn-add-anchor').addEventListener('click', () => {
   const fsftid = document.getElementById('anchorFsftid').value.trim();
   const label = document.getElementById('anchorLabel').value.trim();
   if (!fsftid) { showToast('Вкажи _FSFTID якоря — без нього об’єднати з основним деревом не вийде.'); return; }
+
+  if (editingAnchorId) {
+    const p = persons.find(x => x.localId === editingAnchorId);
+    if (p) { p.fsftid = fsftid; p.label = label; }
+    cancelAnchorEdit();
+    render();
+    showToast('Зміни збережено.');
+    return;
+  }
+
   persons.push({ localId: 'p' + (nextLocalId++), isAnchor: true, fsftid, label });
   document.getElementById('anchorFsftid').value = '';
   document.getElementById('anchorLabel').value = '';
@@ -128,14 +179,59 @@ document.getElementById('btn-add-anchor').addEventListener('click', () => {
   showToast('Якір додано.');
 });
 
-// ---- Додавання живої особи ----
+// ---- Редагування/додавання живої особи ----
+function startPersonEdit(p) {
+  editingPersonId = p.localId;
+  document.getElementById('pGiven').value = p.given || '';
+  document.getElementById('pPatronymic').value = p.patronymic || '';
+  document.getElementById('pSurname').value = p.surname || '';
+  document.getElementById('pSex').value = p.sex || '';
+  document.getElementById('pFsftid').value = p.fsftid || '';
+  document.getElementById('pBirthDate').value = p.birthDate || '';
+  document.getElementById('pBirthPlace').value = p.birthPlace || '';
+  document.getElementById('pDeathDate').value = p.deathDate || '';
+  document.getElementById('pDeathPlace').value = p.deathPlace || '';
+  renderParentSelects(); // оновити список, перш ніж обирати, щоб сама особа не пропонувалась собі ж
+  document.getElementById('pFather').value = p.fatherId || '';
+  document.getElementById('pMother').value = p.motherId || '';
+  document.getElementById('btn-add-person').textContent = '💾 Зберегти зміни';
+  document.getElementById('btn-cancel-person').style.display = 'inline-flex';
+  document.getElementById('pGiven').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function cancelPersonEdit() {
+  editingPersonId = null;
+  ['pGiven', 'pPatronymic', 'pSurname', 'pFsftid', 'pBirthDate', 'pBirthPlace', 'pDeathDate', 'pDeathPlace'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('pSex').value = '';
+  document.getElementById('pFather').value = '';
+  document.getElementById('pMother').value = '';
+  document.getElementById('btn-add-person').textContent = '➕ Додати особу';
+  document.getElementById('btn-cancel-person').style.display = 'none';
+}
+document.getElementById('btn-cancel-person').addEventListener('click', cancelPersonEdit);
 document.getElementById('btn-add-person').addEventListener('click', () => {
-  const given = document.getElementById('pGiven').value.trim();
+  let given = document.getElementById('pGiven').value.trim();
   const surname = document.getElementById('pSurname').value.trim();
   if (!given && !surname) { showToast('Вкажи бодай ім’я або прізвище.'); return; }
-  persons.push({
-    localId: 'p' + (nextLocalId++),
-    isAnchor: false,
+
+  // Захист від подвоєння прізвища: якщо в полі "Ім'я" випадково вписали
+  // прізвище повторно в кінці (звична звичка писати ім'я одним рядком) —
+  // приберемо цей повтор, а не покажемо "Прізвище Прізвище" в дереві.
+  if (surname && given) {
+    const givenWords = given.split(/\s+/);
+    while (givenWords.length && givenWords[givenWords.length - 1].toLowerCase() === surname.toLowerCase()) {
+      givenWords.pop();
+    }
+    given = givenWords.join(' ');
+  }
+
+  const fatherId = document.getElementById('pFather').value;
+  const motherId = document.getElementById('pMother').value;
+  if ((fatherId && fatherId === editingPersonId) || (motherId && motherId === editingPersonId)) {
+    showToast('Особа не може бути власним батьком/матір’ю.');
+    return;
+  }
+
+  const fields = {
     given, surname,
     patronymic: document.getElementById('pPatronymic').value.trim(),
     sex: document.getElementById('pSex').value,
@@ -144,11 +240,20 @@ document.getElementById('btn-add-person').addEventListener('click', () => {
     birthPlace: document.getElementById('pBirthPlace').value.trim(),
     deathDate: document.getElementById('pDeathDate').value.trim(),
     deathPlace: document.getElementById('pDeathPlace').value.trim(),
-    fatherId: document.getElementById('pFather').value,
-    motherId: document.getElementById('pMother').value,
-  });
-  ['pGiven', 'pPatronymic', 'pSurname', 'pFsftid', 'pBirthDate', 'pBirthPlace', 'pDeathDate', 'pDeathPlace'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('pSex').value = '';
+    fatherId, motherId,
+  };
+
+  if (editingPersonId) {
+    const p = persons.find(x => x.localId === editingPersonId);
+    if (p) Object.assign(p, fields);
+    cancelPersonEdit();
+    render();
+    showToast('Зміни збережено.');
+    return;
+  }
+
+  persons.push({ localId: 'p' + (nextLocalId++), isAnchor: false, ...fields });
+  cancelPersonEdit();
   render();
   showToast('Особу додано.');
 });
@@ -159,10 +264,16 @@ document.getElementById('btn-clear-all').addEventListener('click', () => {
   if (!confirm('Очистити всю базу живих родичів у цьому редакторі? Це не можна скасувати.')) return;
   persons = [];
   nextLocalId = 1;
+  cancelAnchorEdit();
+  cancelPersonEdit();
   render();
 });
 
 // ---- Зберегти як GEDCOM ----
+// За проханням: після успішного збереження файл готовий, і список одразу
+// очищується — наступна база починається "з чистого аркуша". Сам файл
+// лишається на диску як повноцінна резервна копія (і його завжди можна
+// підвантажити назад кнопкою "Завантажити базу", якщо треба щось доправити).
 document.getElementById('btn-save-base').addEventListener('click', () => {
   if (!persons.length) { showToast('Спочатку додай хоча б одну особу чи якір.'); return; }
   const gedcomText = buildBaseGedcom(persons);
@@ -175,10 +286,17 @@ document.getElementById('btn-save-base').addEventListener('click', () => {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
-  showToast('Базу збережено у файл living_base.ged.');
+
+  persons = [];
+  nextLocalId = 1;
+  cancelAnchorEdit();
+  cancelPersonEdit();
+  render();
+  showToast('Файл living_base.ged збережено. Список очищено — можна заводити наступних осіб.');
 });
 
-// ---- Завантажити базу (.ged) — розбираємо назад у список для редагування ----
+// ---- Завантажити базу (.ged) — ЗАМІНЮЄ поточний список, з можливістю
+// подальшого редагування/видалення кожного запису. ----
 document.getElementById('btn-load-base').addEventListener('click', () => document.getElementById('fileInputBase').click());
 document.getElementById('fileInputBase').addEventListener('change', async (e) => {
   const file = e.target.files[0];
@@ -194,11 +312,16 @@ document.getElementById('fileInputBase').addEventListener('change', async (e) =>
   e.target.value = '';
 });
 
-function importFromGedcom(text) {
+function importFromGedcom(text, opts = {}) {
   const { individuals, families } = buildIndex(text);
-  if (persons.length && !confirm('Це додасть осіб із файлу до вже наявного списку в редакторі (не замінить його). Продовжити?')) return;
+  if (!opts.silent && persons.length &&
+      !confirm('Поточний список у редакторі буде ЗАМІНЕНО вмістом файлу. Продовжити?')) return;
 
-  // famc(id) -> сім'я, щоб дістати father/motherId кожної не-якірної особи
+  persons = [];
+  nextLocalId = 1;
+  cancelAnchorEdit();
+  cancelPersonEdit();
+
   const idRemap = new Map(); // id з файлу -> новий localId у цьому редакторі
   for (const p of individuals.values()) idRemap.set(p.id, 'p' + (nextLocalId++));
 
@@ -237,3 +360,14 @@ function importFromGedcom(text) {
 
 loadDraft();
 render();
+
+// Якщо редактор відкрито кнопкою "✏️ Редагувати цю базу" з головного вікна —
+// там уже лежить вміст файлу в sessionStorage, підхоплюємо його одразу.
+try {
+  const pending = sessionStorage.getItem('gedcom_living_base_pending_v1');
+  if (pending) {
+    sessionStorage.removeItem('gedcom_living_base_pending_v1');
+    importFromGedcom(pending, { silent: true });
+    showToast('Базу підвантажено з головного вікна для редагування.');
+  }
+} catch { /* немає sessionStorage чи пошкоджені дані — просто ігноруємо */ }
