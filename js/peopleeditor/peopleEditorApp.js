@@ -339,15 +339,32 @@ function importFromGedcom(text, opts = {}) {
       if (fam.wife && idRemap.has(fam.wife)) motherId = idRemap.get(fam.wife);
     }
     // GIVN за конвенцією застосунку: перше слово — ім'я, решта — по батькові
-    const givnRaw = p.givn || (p.name || '').replace(/\//g, '').trim();
+    // ВАЖЛИВО: прибираємо саме сегмент "/Прізвище/" ЦІЛКОМ (разом із текстом
+    // усередині), а не просто символи "/" — інакше прізвище лишається
+    // "приклеєним" до по-батькові (напр. "Оксана Олександрівна Добротворська"
+    // після .replace(/\//g,'') виглядає як 3 слова "імені", і по-батькові
+    // помилково поглинає прізвище — саме це й спричиняло подвоєння).
+    const surnameFromName = (p.name.match(/\/([^/]*)\//) || [, ''])[1];
+    const givnRaw = p.givn || (p.name || '').replace(/\/[^/]*\//, '').trim();
     const givnParts = givnRaw.split(/\s+/).filter(Boolean);
     const given = givnParts[0] || '';
-    const patronymic = givnParts.slice(1).join(' ');
+    let patronymic = givnParts.slice(1).join(' ');
+    const surname = p.surn || surnameFromName;
+    // Самолікування: якщо файл прийшов зі СТАРОЇ версії редактора (де був
+    // баг і прізвище "приклеювалось" до по-батькові) — прибираємо той
+    // повтор тут-таки при завантаженні, а не тягнемо биту дату далі.
+    if (surname) {
+      const patrWords = patronymic.split(/\s+/);
+      while (patrWords.length && patrWords[patrWords.length - 1].toLowerCase() === surname.toLowerCase()) {
+        patrWords.pop();
+      }
+      patronymic = patrWords.join(' ');
+    }
     persons.push({
       localId, isAnchor: false,
       given,
       patronymic,
-      surname: p.surn || (p.name.match(/\/([^/]*)\//) || [, ''])[1],
+      surname,
       sex: p.sex === 'M' || p.sex === 'F' ? p.sex : '',
       fsftid: p.fsftid || '',
       birthDate: p.birt.date || '', birthPlace: p.birt.plac || '',
