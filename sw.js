@@ -4,7 +4,7 @@
 // без ручного скидання кешу), а коли інтернету нема — віддається те, що в кеші.
 // Це той самий підхід, що і в інших польових PWA (мережа-спочатку для автооновлень).
 
-const CACHE_VERSION = 'gedcom-pro-v31';
+const CACHE_VERSION = 'gedcom-pro-v33';
 
 const PRECACHE_FILES = [
   './',
@@ -20,6 +20,7 @@ const PRECACHE_FILES = [
   './js/core/dismissedDuplicates.js',
   './js/core/confirmedDuplicates.js',
   './js/ui/mergeUI.js',
+  './js/ui/navUtil.js',
   './js/core/encoding.js',
   './js/core/language.js',
   './js/core/translit.js',

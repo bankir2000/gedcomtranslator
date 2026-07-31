@@ -6,6 +6,7 @@
 import { state } from '../state.js';
 import { buildIndex } from '../engine/analysis.js';
 import { searchPeople, buildFamilyGraph, personLabel } from '../engine/familyTree.js';
+import { openPageOrNavigate } from './navUtil.js';
 
 function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
@@ -152,5 +153,5 @@ export function openTreeWindow() {
     return;
   }
 
-  window.open('tree-view.html', '_blank');
+  openPageOrNavigate('tree-view.html');
 }

@@ -8,6 +8,7 @@
 // Worker навмисно НЕ зроблено, дерево працює лише за наявності інтернету.
 import * as f3 from 'https://cdn.jsdelivr.net/npm/family-chart@0.9.0/+esm';
 import { renderFanChart } from './fanChart.js?v=7';
+import { openPageOrNavigate, closeOrNavigateBack } from '../ui/navUtil.js';
 
 const FS_BASE = 'https://www.familysearch.org/tree/person/details/';
 const STORAGE_KEY = 'gedcom_tree_graph_v1';
@@ -39,7 +40,7 @@ document.getElementById('themeBtn').addEventListener('click', () => {
 });
 initTheme();
 
-document.getElementById('closeBtn').addEventListener('click', () => window.close());
+document.getElementById('closeBtn').addEventListener('click', () => closeOrNavigateBack('index.html'));
 
 // ---- Шкала масштабування в шапці ----
 // family-chart не документує окремий API для програмного зуму, але зум/пан
@@ -191,6 +192,11 @@ function renderCurrentMode(data) {
 function renderTreeMode(data) {
   container.innerHTML = '';
 
+  // Індекс "id -> вузол" для цього графа — потрібен, щоб на картці визначити,
+  // яких зв'язків (батько/мати) ще бракує (дивимось стать уже прив'язаних
+  // rels.parents), не запитуючи це в самої бібліотеки.
+  const nodeIndex = new Map(data.nodes.map(n => [n.id, n]));
+
   // ---- Сам граф: family-chart сам малює чоловіка/дружину поруч, дітей під
   // ними, батьків зверху. setAncestryDepth/setProgenyDepth обмежують, скільки
   // поколінь показано розгорнутими одразу (решта — за іконкою "+" на гілці) —
@@ -202,7 +208,7 @@ function renderTreeMode(data) {
     .setAncestryDepth(INITIAL_ANCESTRY_DEPTH)
     .setProgenyDepth(INITIAL_PROGENY_DEPTH)
     .setCardXSpacing(270)
-    .setCardYSpacing(240);
+    .setCardYSpacing(260);
   f3ChartInstance = f3Chart;
 
   // Замість вбудованого шаблону картки (він виявився ненадійним — рамка
@@ -210,7 +216,7 @@ function renderTreeMode(data) {
   // рік народження (★) і смерті (✝) — кожен на своєму рядку, рамка й фон —
   // звичайний CSS, який ми повністю контролюємо.
   const f3Card = f3Chart.setCardHtml()
-    .setCardDim({ width: 210, height: 115 });
+    .setCardDim({ width: 210, height: 155 });
 
   f3Card.setCardInnerHtmlCreator((d) => {
     const person = extractPersonData(d) || {};
@@ -219,22 +225,51 @@ function renderTreeMode(data) {
     const lines = [];
     if (person.birthYear) lines.push(`★ ${esc(String(person.birthYear))}`);
     if (person.deathYear) lines.push(`✝ ${esc(String(person.deathYear))}`);
+    if (person.marriageYear) lines.push(`💍 ${esc(String(person.marriageYear))}`);
+
+    // ---- Кнопки "➕ додати родича" — лише якщо в цієї особи є власний
+    // _FSFTID (інакше нема на що спертись зовнішнім посиланням у редакторі
+    // "Люди") і лише для дійсно відсутнього батька/матері; чоловіка/дружину
+    // й дитину можна додати завжди (шлюбів і дітей може бути кілька). ----
+    let addButtons = '';
+    if (person.fsftid) {
+      const node = nodeIndex.get(d.data.id);
+      const parents = (node?.rels?.parents || []).map(id => nodeIndex.get(id)).filter(Boolean);
+      const hasFather = parents.some(p => p.data.gender === 'M');
+      const hasMother = parents.some(p => p.data.gender === 'F');
+      const btns = [];
+      if (!hasFather) btns.push(['father', '👨', 'Додати батька']);
+      if (!hasMother) btns.push(['mother', '👩', 'Додати матір']);
+      btns.push(['spouse', '💍', 'Додати чоловіка/дружину']);
+      btns.push(['child', '🧒', 'Додати дитину']);
+      addButtons = `<div class="tv-card-add">${btns.map(([rel, icon, title]) =>
+        `<button type="button" class="tv-add-btn" data-rel="${rel}" title="${esc(title)}">➕${icon}</button>`
+      ).join('')}</div>`;
+    }
+
     return `
       <div class="tv-card ${genderClass}${isMain ? ' tv-card-main' : ''}">
         <div class="tv-card-name">${esc(person['first name'] || '(без імені)')}</div>
         ${lines.map(l => `<div class="tv-card-line">${l}</div>`).join('')}
+        ${addButtons}
       </div>
     `;
   });
 
-  // ---- Клік по картці особи -> FamilySearch за _FSFTID ----
-  // setOnCardClick — задокументований метод CardHtml, повністю замінює
-  // стандартну поведінку кліку (перецентрування дерева на цій особі).
+  // ---- Клік по картці особи -> FamilySearch за _FSFTID, АБО, якщо клікнули
+  // саме кнопку "➕", відкриваємо редактор "Люди" з готовим зв'язком. ----
   f3Card.setOnCardClick((e, d) => {
+    const addBtn = e.target.closest && e.target.closest('.tv-add-btn');
+    if (addBtn) {
+      e.stopPropagation();
+      const person = extractPersonData(d);
+      openAddRelative(addBtn.dataset.rel, person);
+      return;
+    }
     const person = extractPersonData(d);
     const fsftid = person && person.fsftid;
     if (fsftid) {
-      window.open(FS_BASE + encodeURIComponent(fsftid), '_blank', 'noopener');
+      openPageOrNavigate(FS_BASE + encodeURIComponent(fsftid));
     } else {
       showToast('У цієї особи немає _FSFTID у файлі — перехід на FamilySearch неможливий.');
     }
@@ -242,6 +277,27 @@ function renderTreeMode(data) {
 
   f3Chart.updateTree({ initial: true, tree_position: 'fit' });
   syncSvgSize();
+}
+
+// Передає запит "додай мені {rel}" у редактор "Люди" через sessionStorage —
+// той сам підхоплює його при завантаженні (той самий місток, що вже
+// використовується для передачі бази на редагування).
+const ADD_RELATIVE_KEY = 'gedcom_people_add_relative_v1';
+function openAddRelative(rel, person) {
+  if (!person || !person.fsftid) {
+    showToast('У цієї особи немає _FSFTID — додати родича через дерево не можна.');
+    return;
+  }
+  const label = (person['first name'] || '').trim();
+  try {
+    sessionStorage.setItem(ADD_RELATIVE_KEY, JSON.stringify({
+      rel, fsftid: person.fsftid, label, targetSex: person.gender || '',
+    }));
+  } catch {
+    showToast('Не вдалося передати дані в редактор.');
+    return;
+  }
+  openPageOrNavigate('people-editor.html');
 }
 
 // ---- Режим "Віяло" (fanChart.js — власна реалізація на D3, family-chart
@@ -260,7 +316,7 @@ function renderFanMode() {
     onLongPress: (node) => {
       const fsftid = node?.data?.fsftid;
       if (fsftid) {
-        window.open(FS_BASE + encodeURIComponent(fsftid), '_blank', 'noopener');
+        openPageOrNavigate(FS_BASE + encodeURIComponent(fsftid));
       } else {
         showToast('У цієї особи немає _FSFTID у файлі — перехід на FamilySearch неможливий.');
       }

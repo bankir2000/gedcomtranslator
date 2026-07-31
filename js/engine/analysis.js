@@ -2,10 +2,15 @@
 import { isPatronymic } from '../dict/patronymics.js';
 
 // Один прохід по файлу будує індекс осіб і сімей з усіма зв'язками.
+// Заразом фіксує дублікати XREF-ідентифікаторів (@I5@ двічі в файлі тощо) —
+// без цього другий запис із тим самим id просто МОВЧКИ перезаписав би перший
+// у Map (втрата даних, яку інакше ніде не видно).
 export function buildIndex(rawContent) {
   const lines = rawContent.split(/\r?\n/);
   const individuals = new Map();
   const families = new Map();
+  const seenIds = new Map(); // id -> тип першого запису з таким id
+  const duplicateIds = []; // { id, type } — записи, що повторили вже зайнятий id
   let cur = null;
   let event = null;
 
@@ -22,6 +27,8 @@ export function buildIndex(rawContent) {
       event = null;
       if (m0) {
         const [, id, tag] = m0;
+        if (seenIds.has(id)) duplicateIds.push({ id, type: tag });
+        else seenIds.set(id, tag);
         if (tag === 'INDI') {
           cur = { type: 'INDI', id, name: '', givn: '', surn: '', sex: '', birt: {}, deat: {}, famc: [], fams: [], fsftid: '', isAnchor: false };
           individuals.set(id, cur);
@@ -73,7 +80,7 @@ export function buildIndex(rawContent) {
       }
     }
   }
-  return { individuals, families };
+  return { individuals, families, duplicateIds };
 }
 
 export function yearOf(dateStr) {
@@ -117,9 +124,18 @@ export function computeStats(individuals, families) {
 }
 
 // ---------- ПЕРЕВІРКА СТРУКТУРИ ----------
-export function validateStructure(individuals, families) {
+export function validateStructure(individuals, families, duplicateIds = []) {
   const issues = [];
   const add = (level, message, ref) => issues.push({ level, message, ref });
+
+  // Дублікат XREF-ідентифікатора — це не "просто попередження": другий запис
+  // із тим самим @id@ МОВЧКИ перезаписав перший при розборі файлу (і в цьому
+  // застосунку, і в будь-якому іншому, що читає GEDCOM у Map/словник за id).
+  // Дані першого запису фактично втрачені — виправляти треба у вихідному
+  // файлі (перенумерувати один із конфліктних id), а не тут.
+  for (const d of duplicateIds) {
+    add('error', `Повторний ідентифікатор @${d.id}@ (${d.type}) — другий запис перезаписав перший, дані втрачено`, `@${d.id}@`);
+  }
   // Особу показуємо за її _FSFTID (це те, що реально шукають у FamilySearch).
   // Внутрішній локальний @I..@ показуємо лише як запасний варіант, якщо _FSFTID відсутній.
   const indiRef = p => p.fsftid ? `(${p.fsftid})` : `@${p.id}@`;
@@ -172,6 +188,62 @@ export function validateStructure(individuals, families) {
   return issues.sort((a, b) => (a.level === 'error' ? 0 : 1) - (b.level === 'error' ? 0 : 1));
 }
 
+// Позиційний розбір ПІБ — та сама логіка, що й у звіті FamilySearch: перше
+// слово GIVN — ім'я, решта — по батькові; якщо GIVN/SURN окремо не заповнені,
+// беремо їх із NAME "Ім'я По-батькові /Прізвище/".
+function nameParts(p) {
+  let givnRaw = p.givn || '';
+  let surnRaw = p.surn || '';
+  if (!givnRaw && p.name) {
+    const m = p.name.match(/^([^/]*)\//);
+    givnRaw = m ? m[1].trim() : p.name.replace(/\//g, '').trim();
+  }
+  if (!surnRaw && p.name) {
+    const m = p.name.match(/\/([^/]*)\//);
+    if (m) surnRaw = m[1].trim();
+  }
+  const tokens = givnRaw.trim().split(/\s+/).filter(Boolean);
+  return { given: tokens[0] || '', patronymic: tokens.slice(1).join(' '), surname: surnRaw };
+}
+
+// Коли точної дати народження нема, пробуємо оцінити рік із непрямих ознак —
+// за спаданням надійності: наймолодша дитина (типовий вік батьківства ~25),
+// дата шлюбу (типовий вік одруження ~23), рік народження подружжя (умовно
+// ровесники), дата смерті (середня тривалість життя ~65 років).
+function estimateBirthYear(p, individuals, families) {
+  const childYears = [];
+  for (const famId of p.fams) {
+    const f = families.get(famId);
+    if (!f) continue;
+    for (const cid of f.chil) {
+      const c = individuals.get(cid);
+      const cy = c && yearOf(c.birt.date);
+      if (cy) childYears.push(cy);
+    }
+  }
+  if (childYears.length) return Math.min(...childYears) - 25;
+
+  for (const famId of p.fams) {
+    const f = families.get(famId);
+    const my = f && yearOf(f.marr && f.marr.date);
+    if (my) return my - 23;
+  }
+
+  for (const famId of p.fams) {
+    const f = families.get(famId);
+    if (!f) continue;
+    const spouseId = f.husb === p.id ? f.wife : (f.wife === p.id ? f.husb : null);
+    const spouse = spouseId && individuals.get(spouseId);
+    const sy = spouse && yearOf(spouse.birt.date);
+    if (sy) return sy;
+  }
+
+  const dy = yearOf(p.deat.date);
+  if (dy) return dy - 65;
+
+  return null;
+}
+
 // ---------- ОБРИВИ ДЕРЕВА (межі завантаженої частини) ----------
 // Мета: показати РІВНО ті точки, звідки можна дозавантажити ще на FamilySearch,
 // замість перевіряти вручну чи перезавантажувати все дерево.
@@ -184,30 +256,45 @@ export function validateStructure(individuals, families) {
 //     у файлі. Свого _FSFTID у відсутньої людини по визначенню нема (її запису
 //     немає взагалі), тому як орієнтир даємо _FSFTID того з подружжя, хто Є у файлі.
 export function findTreeBreaks(individuals, families) {
+  // Звіт показує лише осіб, які ОДНОЧАСНО відповідають усім 4 умовам:
+  //  1. Заповнені ім'я, по батькові й прізвище.
+  //  2. Рік народження (точний або оцінений з непрямих даних) — 1800..поточний рік.
+  //  3. Особі виповнилось 18 років (на момент смерті чи на сьогодні).
+  //  4. Немає зв'язку з батьками (FAMC) — тобто саме тут "обривається" гілка вгору.
+  // Мета — не просто "усі без батьків", а конкретний, придатний для
+  // подальшого генеалогічного пошуку список: реальні дорослі люди historичної
+  // доби з достатньо повним записом, а не немовлята чи записи-заглушки.
   const items = [];
-  const seen = new Set();
-  const addBreak = (p, reason) => {
-    if (seen.has(p.id)) return;
-    seen.add(p.id);
+  const currentYear = new Date().getFullYear();
+
+  for (const p of individuals.values()) {
+    if (p.famc.length > 0) continue; // умова 4
+
+    const { given, patronymic, surname } = nameParts(p);
+    if (!given || !patronymic || !surname) continue; // умова 1
+
+    const exactBirth = yearOf(p.birt.date);
+    const birthYear = exactBirth || estimateBirthYear(p, individuals, families);
+    if (!birthYear || birthYear < 1800 || birthYear > currentYear) continue; // умова 2
+
+    const deathYear = yearOf(p.deat.date);
+    const age = (deathYear || currentYear) - birthYear;
+    if (age < 18) continue; // умова 3
+
     items.push({
       id: p.id,
       fsftid: p.fsftid || '',
       name: (p.name || '').replace(/\//g, '').trim() || '(без імені)',
-      birthYear: yearOf(p.birt.date),
-      reason,
+      birthYear,
+      birthYearEstimated: !exactBirth,
     });
-  };
-
-  for (const p of individuals.values()) {
-    if (p.famc.length === 0 && p.fams.length > 0) {
-      addBreak(p, 'Немає запису про батьків — тут завантажене дерево закінчується');
-    }
-    for (const fid of p.famc) {
-      if (!families.has(fid)) addBreak(p, `FAMC вказує на сім'ю @${fid}@, якої немає у файлі`);
-    }
   }
   items.sort((a, b) => (a.birthYear || 9999) - (b.birthYear || 9999));
 
+  // Розірвані посилання (FAM вказує на особу, якої взагалі немає у файлі) —
+  // це інший тип проблеми (биті дані, а не "тут дерево закінчується"), і він
+  // вже окремо ловиться в "Перевірці структури". Тут лишаємо тільки для
+  // зручності — щоб одразу бачити, кого шукати, коли саме сім'я розірвана.
   const familyGaps = [];
   const gapRow = (f, role, missingId) => {
     const knownId = role === 'чоловік' ? f.wife : role === 'дружина' ? f.husb : null;
@@ -315,10 +402,10 @@ export function analyzeFrequencies(individuals, families) {
 }
 
 export function runFullAnalysis(rawContent) {
-  const { individuals, families } = buildIndex(rawContent);
+  const { individuals, families, duplicateIds } = buildIndex(rawContent);
   return {
     stats: computeStats(individuals, families),
-    issues: validateStructure(individuals, families),
+    issues: validateStructure(individuals, families, duplicateIds),
     duplicates: findDuplicates(individuals),
     freq: analyzeFrequencies(individuals, families),
     treeBreaks: findTreeBreaks(individuals, families),

@@ -63,6 +63,16 @@ function isUkPatronymic(word) {
   return UK_PATR_SUFFIXES.some(s => wl.length > s.length + 2 && wl.endsWith(s));
 }
 
+// Визначає стать ЛИШЕ за граматичним суфіксом по-батькові (той самий розбір,
+// що вже використовує translatePatronymic для вибору роду в перекладі) —
+// без жодної зовнішньої бібліотеки типу petrovich: вона розпізнавала б лише
+// звичайні "-ич/-на", а тут уже враховані й архаїчні форми (-ов/-ев/-ин)
+// та список винятків (Харитина, Устин тощо), специфічних для цих даних.
+// Повертає 'M' | 'F' | null (null — суфікс не розпізнано, вгадувати не варто).
+export function inferSexFromWord(word) {
+  return parseRuPatronymic(word)?.sex || null;
+}
+
 export function isPatronymic(word) {
   const lo = word.trim().toLowerCase();
   // Ручний словник по-батькові має найвищий пріоритет — якщо слово там є явно,

@@ -16,7 +16,7 @@
   <div class="badge">GED</div>
   <div style="flex:1;min-width:0;">
     <h1 style="margin:0;">GEDCOM Перекладач Pro</h1>
-    <div style="font-size:.7rem;color:var(--muted);line-height:1.3;">v40 · зібрано 22.07.2026 11:37 · Банкір</div>
+    <div style="font-size:.7rem;color:var(--muted);line-height:1.3;">v47 · зібрано 31.07.2026 04:10 · Банкір</div>
   </div>
   <span class="sub">рос → укр</span>
   <button class="theme-toggle" id="themeBtn">☀️ День</button>
@@ -24,7 +24,7 @@
 
 <div class="tabs">
   <button class="tab active" data-tab="translate">📂 Переклад <span id="badge-backup" style="display:none;background:var(--orange);color:#fff;font-size:.68rem;padding:1px 6px;border-radius:999px;margin-left:4px;" title="Давно не було повного бекапу">!</span></button>
-  <button class="tab" data-tab="living">➕ Живі родичі</button>
+  <button class="tab" data-tab="living">➕ Люди</button>
   <button class="tab" data-tab="dict">📖 Довідник</button>
   <button class="tab" data-tab="names">🙋 Імена</button>
   <button class="tab" data-tab="patr">👤 По-батькові</button>
@@ -109,6 +109,8 @@
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="opt-places" checked> Місця (PLAC, CITY…)</label>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="opt-notes" checked> Нотатки (NOTE, TEXT)</label>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;" title="Стосується лише Місць і Нотаток. Для Імені/По-батькові/Прізвища вимкнено назавжди — там або словник/правило, або слово лишається як є."><input type="checkbox" id="opt-translitAuto" checked> Авто-транслітерація (лише Місця/Нотатки)</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;" title="Якщо в записі немає тега SEX узагалі — визначає стать із суфікса по-батькові (-ович/-ич → чоловіча, -овна/-ична → жіноча, включно з архаїчними формами) і дописує тег. Якщо по-батькові немає або суфікс не розпізнано — нічого не додає."><input type="checkbox" id="opt-autoSex"> Дописати SEX за по-батькові (якщо відсутній)</label>
+          <span></span>
         </div>
         <div style="font-size:.75rem;color:var(--muted);margin-top:4px;">Ім'я, По-батькові й Прізвище ніколи не транслітеруються "навгад" — лише за довідником або граматичним правилом по-батькові. Якщо збігу нема, слово лишається як є і потрапляє у «Непереведені».</div>
       </div>
@@ -192,18 +194,19 @@
   </div>
 </div>
 
-<!-- ===== TAB: LIVING (живі родичі) ===== -->
+<!-- ===== TAB: LIVING (люди, яких бракує при перенесенні з FamilySearch) ===== -->
 <div class="panel" id="panel-living">
   <div class="section">
-    <div class="section-head">➕ Живі родичі (не входять у файл FamilySearch)</div>
+    <div class="section-head">➕ Люди (довставити відсутніх при перенесенні з FamilySearch)</div>
     <div class="section-body" style="display:flex;flex-direction:column;gap:12px;">
       <div style="font-size:.8rem;color:var(--muted);">
-        FamilySearch не віддає в експорті живих людей. Заведи їх окремо в редакторі, збережи як
-        «базу» (.ged), а тут об'єднай цю базу з поточним файлом за <code>_FSFTID</code> останніх
-        відомих предків.
+        FamilySearch не віддає в експорті живих людей, а іноді імпорт обривається й губить когось ще.
+        Заведи цих людей окремо в редакторі (з зв'язками — батьки, чоловік/дружина, діти — або через
+        вибір зі списку, або напряму за <code>_FSFTID</code> вже існуючої в дереві людини), збережи як
+        «базу» (.ged), а тут об'єднай цю базу з поточним файлом.
       </div>
       <div class="row" style="gap:10px;flex-wrap:wrap;">
-        <button class="btn btn-primary btn-sm" id="btn-open-people-editor" type="button">➕ Відкрити редактор живих родичів</button>
+        <button class="btn btn-primary btn-sm" id="btn-open-people-editor" type="button">➕ Відкрити редактор людей</button>
       </div>
       <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--border);padding-top:12px;">
         <button class="btn btn-ghost btn-sm" id="btn-choose-base-file" type="button">📂 Обрати базу (.ged)</button>
@@ -221,6 +224,7 @@
       </div>
       <div class="row" style="gap:10px;flex-wrap:wrap;">
         <button class="btn btn-success btn-sm" id="btn-do-merge" type="button" disabled>🧬 Об'єднати</button>
+        <button class="btn btn-primary btn-sm" id="btn-save-merged" type="button" style="display:none;">⬇ Зберегти об'єднаний файл (.ged)</button>
       </div>
       <div id="mergeResult" style="font-size:.82rem;"></div>
     </div>

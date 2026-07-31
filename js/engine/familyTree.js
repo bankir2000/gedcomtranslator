@@ -120,11 +120,19 @@ export function buildFamilyGraph(individuals, families, rootId, opts = {}) {
     if (parentNode && !parentNode.rels.children.includes(childId)) parentNode.rels.children.push(childId);
   }
 
-  function linkSpouses(aId, bId) {
+  function linkSpouses(aId, bId, marriageYear) {
     const a = nodes.get(aId);
     const b = nodes.get(bId);
     if (a && !a.rels.spouses.includes(bId)) a.rels.spouses.push(bId);
     if (b && !b.rels.spouses.includes(aId)) b.rels.spouses.push(aId);
+    // Дата шлюбу — показуємо окремим рядком у картці (надійніше, ніж
+    // намагатись підписати саме лінію зв'язку — для цього в family-chart
+    // немає задокументованого способу). Зберігаємо НАЙРАНІШИЙ рік шлюбу,
+    // якщо в особи їх кілька — щоб картка не розросталась.
+    if (marriageYear) {
+      if (a && (!a.data.marriageYear || marriageYear < a.data.marriageYear)) a.data.marriageYear = marriageYear;
+      if (b && (!b.data.marriageYear || marriageYear < b.data.marriageYear)) b.data.marriageYear = marriageYear;
+    }
   }
 
   // Додає батьків особи (створює їх як вузли, лінкує) — повертає саму сім'ю
@@ -161,7 +169,7 @@ export function buildFamilyGraph(individuals, families, rootId, opts = {}) {
       const fam = families.get(famId);
       if (!fam) continue;
       const spouseId = fam.husb === id ? fam.wife : (fam.wife === id ? fam.husb : null);
-      if (spouseId && ensureNode(spouseId)) linkSpouses(id, spouseId);
+      if (spouseId && ensureNode(spouseId)) linkSpouses(id, spouseId, yearOf(fam.marr?.date));
     }
   }
 

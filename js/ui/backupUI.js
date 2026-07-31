@@ -5,7 +5,7 @@ import { savePatrDict } from '../dict/store.js';
 import { replaceAllDict } from '../dict/sets.js';
 import { renderDict } from './dictUI.js';
 import { goToStep, markReached } from './wizard.js';
-import { downloadText } from '../core/download.js';
+import { downloadText, downloadGedcom } from '../core/download.js';
 import { loadDismissedArray, replaceDismissed } from '../core/dismissedDuplicates.js';
 import { loadConfirmedArray, replaceConfirmed } from '../core/confirmedDuplicates.js';
 
@@ -216,13 +216,12 @@ export async function doImportAll(e) {
 function downloadBackup(id) {
   const b = getBackup(id);
   if (!b) return;
-  let content, filename;
   if (b.kind === 'translation') {
-    content = b.payload.rawContent;
-    filename = (b.payload.fileName || 'backup').replace(/\.[^.]+$/, '') + '_backup.ged';
-  } else {
-    content = JSON.stringify(b.kind === 'patr' ? b.payload.patrDict : b.payload.dict, null, 2);
-    filename = (b.kind === 'patr' ? 'gedcom_patronymics' : 'gedcom_dict') + '_backup.json';
+    const filename = (b.payload.fileName || 'backup').replace(/\.[^.]+$/, '') + '_backup.ged';
+    downloadGedcom(filename, b.payload.rawContent);
+    return;
   }
-  downloadText(filename, content);
+  const content = JSON.stringify(b.kind === 'patr' ? b.payload.patrDict : b.payload.dict, null, 2);
+  const filename = (b.kind === 'patr' ? 'gedcom_patronymics' : 'gedcom_dict') + '_backup.json';
+  downloadText(filename, content, 'application/json;charset=utf-8');
 }

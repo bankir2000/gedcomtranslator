@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Живі родичі · GEDCOM Перекладач Pro</title>
+<title>Люди · GEDCOM Перекладач Pro</title>
 <link rel="icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/people-editor.css?v=4">
@@ -13,18 +13,20 @@
 <header class="pe-header">
   <button class="btn btn-ghost btn-sm" id="closeBtn" type="button" title="Закрити">✕</button>
   <div class="pe-title">
-    <h1>➕ Живі родичі (база)</h1>
-    <div class="pe-sub">Особи, яких FamilySearch не віддає через обмеження приватності для живих людей</div>
+    <h1>➕ Люди (база для довставляння)</h1>
+    <div class="pe-sub">Особи, яких бракує при перенесенні дерева з FamilySearch (живі люди, розриви імпорту тощо)</div>
   </div>
   <button class="btn btn-ghost btn-sm" id="themeBtn" type="button" title="Тема">☀️</button>
 </header>
 
 <main class="pe-main">
   <div class="pe-explainer">
-    Додай сюди живих родичів вручну. Кожна гілка має починатись з <b>«якоря»</b> — заглушки з
-    <code>_FSFTID</code> вже існуючої в основному дереві людини (зазвичай — останній відомий предок).
-    Живі особи прив'язуються до якорів (або одне до одного) як батько/мати. Готову базу можна зберегти
-    як окремий <code>.ged</code>-файл і пізніше об'єднати з основним деревом на вкладці «Переклад».
+    Додай сюди людей, яких бракує в дереві (живі родичі, яких FamilySearch не віддає через приватність,
+    або будь-хто інший, загублений при перенесенні). У кожному полі зв'язку — <b>Батько</b>, <b>Мати</b>,
+    <b>Чоловік/Дружина</b>, <b>Діти</b> — можна або обрати людину з цього ж списку, або, якщо потрібна
+    людина вже є в основному дереві, ввести напряму її <code>_FSFTID</code> (код зі сторінки цієї людини
+    на FamilySearch). Готову базу можна зберегти як окремий <code>.ged</code>-файл і пізніше об'єднати
+    з основним деревом на вкладці «Люди».
   </div>
 
   <div class="pe-toolbar">
@@ -35,65 +37,92 @@
     <span class="pe-count" id="pe-count">0 осіб у базі</span>
   </div>
 
-  <div class="pe-columns">
-    <section class="pe-section">
-      <h2>⚓ Додати якір (прив'язка до основного дерева)</h2>
-      <div class="pe-form">
-        <label>_FSFTID <span class="req">*</span>
-          <input type="text" id="anchorFsftid" placeholder="напр. GBBQ-9MV">
-        </label>
-        <label>Довідкова назва (лише для зручності тут, не впливає на об'єднання)
-          <input type="text" id="anchorLabel" placeholder="напр. Іван Петров Сидоров">
-        </label>
-        <div class="row" style="gap:8px;">
-          <button class="btn btn-primary btn-sm" id="btn-add-anchor" type="button">➕ Додати якір</button>
-          <button class="btn btn-ghost btn-sm" id="btn-cancel-anchor" type="button" style="display:none;">✖ Скасувати</button>
-        </div>
+  <section class="pe-section">
+    <h2>🧑 Додати людину</h2>
+    <div class="pe-form">
+      <div class="pe-row2">
+        <label>Ім'я <input type="text" id="pGiven" placeholder="Петро"></label>
+        <label>По батькові <input type="text" id="pPatronymic" placeholder="Іванович"></label>
       </div>
-    </section>
+      <div class="pe-row2">
+        <label>Прізвище <input type="text" id="pSurname" placeholder="Сидоров"></label>
+        <label>Стать
+          <select id="pSex">
+            <option value="">—</option>
+            <option value="M">Чоловіча</option>
+            <option value="F">Жіноча</option>
+          </select>
+        </label>
+      </div>
+      <div class="pe-row2">
+        <label>_FSFTID цієї людини (якщо раптом уже є)
+          <input type="text" id="pFsftid" placeholder="необов'язково">
+        </label>
+        <label>Дата народження <input type="text" id="pBirthDate" placeholder="напр. 12 MAR 1990"></label>
+      </div>
+      <div class="pe-row2">
+        <label>Місце народження <input type="text" id="pBirthPlace" placeholder="необов'язково"></label>
+        <label>Дата смерті <input type="text" id="pDeathDate" placeholder="якщо померли"></label>
+      </div>
+      <div class="pe-row2">
+        <label>Місце смерті <input type="text" id="pDeathPlace" placeholder="необов'язково"></label>
+        <label><!-- порожньо, для рівного вирівнювання сітки --></label>
+      </div>
 
-    <section class="pe-section">
-      <h2>🧑 Додати живу особу</h2>
-      <div class="pe-form">
-        <div class="pe-row2">
-          <label>Ім'я <input type="text" id="pGiven" placeholder="Петро"></label>
-          <label>По батькові <input type="text" id="pPatronymic" placeholder="Іванович"></label>
-        </div>
-        <div class="pe-row2">
-          <label>Прізвище <input type="text" id="pSurname" placeholder="Сидоров"></label>
-          <label>Стать
-            <select id="pSex">
-              <option value="">—</option>
-              <option value="M">Чоловіча</option>
-              <option value="F">Жіноча</option>
-            </select>
-          </label>
-        </div>
-        <div class="pe-row2">
-          <label>_FSFTID (якщо раптом уже є)
-            <input type="text" id="pFsftid" placeholder="необов'язково">
-          </label>
-          <label>Дата народження <input type="text" id="pBirthDate" placeholder="напр. 12 MAR 1990"></label>
-        </div>
-        <div class="pe-row2">
-          <label>Місце народження <input type="text" id="pBirthPlace" placeholder="необов'язково"></label>
-          <label>Дата смерті <input type="text" id="pDeathDate" placeholder="якщо померли"></label>
-        </div>
-        <div class="pe-row2">
-          <label>Місце смерті <input type="text" id="pDeathPlace" placeholder="необов'язково"></label>
-          <label><!-- порожньо, для рівного вирівнювання сітки --></label>
-        </div>
-        <div class="pe-row2">
-          <label>Батько <select id="pFather"></select></label>
-          <label>Мати <select id="pMother"></select></label>
-        </div>
-        <div class="row" style="gap:8px;">
-          <button class="btn btn-primary btn-sm" id="btn-add-person" type="button">➕ Додати особу</button>
-          <button class="btn btn-ghost btn-sm" id="btn-cancel-person" type="button" style="display:none;">✖ Скасувати</button>
+      <div class="pe-rel-block">
+        <div class="pe-rel-title">Батько</div>
+        <div class="pe-rel-row">
+          <select id="pFatherLocal"></select>
+          <span class="pe-rel-or">або код FSFTID</span>
+          <input type="text" id="pFatherFsftid" placeholder="напр. GBBQ-9MV">
+          <input type="text" id="pFatherLabel" placeholder="мітка (необов'язково)" class="pe-rel-label">
         </div>
       </div>
-    </section>
-  </div>
+
+      <div class="pe-rel-block">
+        <div class="pe-rel-title">Мати</div>
+        <div class="pe-rel-row">
+          <select id="pMotherLocal"></select>
+          <span class="pe-rel-or">або код FSFTID</span>
+          <input type="text" id="pMotherFsftid" placeholder="напр. GBBQ-9MV">
+          <input type="text" id="pMotherLabel" placeholder="мітка (необов'язково)" class="pe-rel-label">
+        </div>
+      </div>
+
+      <div class="pe-rel-block">
+        <div class="pe-rel-title">Чоловік / Дружина</div>
+        <div class="pe-rel-row">
+          <select id="pSpouseLocal"></select>
+          <span class="pe-rel-or">або код FSFTID</span>
+          <input type="text" id="pSpouseFsftid" placeholder="напр. GBBQ-9MV">
+          <input type="text" id="pSpouseLabel" placeholder="мітка (необов'язково)" class="pe-rel-label">
+        </div>
+        <div class="pe-row2" style="margin-top:8px;">
+          <label>Дата шлюбу <input type="text" id="pMarriageDate" placeholder="напр. 5 JUN 2015"></label>
+          <label>Місце шлюбу <input type="text" id="pMarriagePlace" placeholder="необов'язково"></label>
+        </div>
+      </div>
+
+      <div class="pe-rel-block">
+        <div class="pe-rel-title">Діти</div>
+        <div class="pe-rel-row">
+          <select id="pChildrenLocal" multiple size="4" style="flex:1;"></select>
+        </div>
+        <div class="pe-rel-row" style="margin-top:8px;">
+          <span class="pe-rel-or" style="margin-left:0;">Додати дитину за кодом FSFTID:</span>
+          <input type="text" id="pChildExtFsftid" placeholder="напр. GBBQ-9MV">
+          <input type="text" id="pChildExtLabel" placeholder="мітка (необов'язково)" class="pe-rel-label">
+          <button class="btn btn-ghost btn-sm" id="btn-add-child-ext" type="button">➕</button>
+        </div>
+        <div class="pe-chips" id="pChildExtChips"></div>
+      </div>
+
+      <div class="row" style="gap:8px;">
+        <button class="btn btn-primary btn-sm" id="btn-add-person" type="button">➕ Додати людину</button>
+        <button class="btn btn-ghost btn-sm" id="btn-cancel-person" type="button" style="display:none;">✖ Скасувати</button>
+      </div>
+    </div>
+  </section>
 
   <section class="pe-section">
     <h2>📋 Список осіб у базі</h2>

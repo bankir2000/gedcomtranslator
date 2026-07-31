@@ -1,10 +1,20 @@
-// ===================== РЕДАКТОР ЖИВИХ РОДИЧІВ =====================
+// ===================== РЕДАКТОР ЛЮДЕЙ (довставляння відсутніх у дерево) =====================
 // Самодостатня сторінка (окреме вікно) — без залежності від CDN, тож, на
 // відміну від tree-view.html, могла б кешуватись офлайн; але поки що
 // навмисно виключена з Service Worker (той самий підхід, що й для дерева),
 // щоб не ускладнювати ще неусталену функцію кешуванням.
+//
+// Кожна особа однорідна (немає окремого типу "якір" — див. relRef.js):
+// поля зв'язку (father/mother/spouse/children) — це RelRef, що вказує або на
+// іншу особу ЦІЄЇ Ж бази (local), або напряму на вже існуючу в основному
+// дереві людину за її _FSFTID (external), без окремого запису-заглушки.
 import { buildIndex } from '../engine/analysis.js';
 import { buildBaseGedcom } from '../engine/baseGedcom.js';
+import { localRef, externalRef, refLabel } from './relRef.js';
+import { canSetParent, canSetChild, canSetSpouse } from './cycles.js';
+import { migrateDraft, CURRENT_DRAFT_VERSION } from './draftMigration.js';
+import { closeOrNavigateBack } from '../ui/navUtil.js';
+import { downloadGedcom } from '../core/download.js';
 
 const DRAFT_KEY = 'gedcom_living_base_draft_v1';
 const THEME_KEY = 'gedcom_theme';
@@ -21,7 +31,7 @@ document.getElementById('themeBtn').addEventListener('click', () => {
   document.getElementById('themeBtn').textContent = isDay ? '🌙' : '☀️';
 });
 initTheme();
-document.getElementById('closeBtn').addEventListener('click', () => window.close());
+document.getElementById('closeBtn').addEventListener('click', () => closeOrNavigateBack('index.html'));
 
 function esc(s) {
   return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -37,22 +47,30 @@ function showToast(msg) {
 }
 
 // ---- Дані ----
-// persons: [{ localId, isAnchor, fsftid, label, given, patronymic, surname,
-//              sex, birthDate, birthPlace, deathDate, deathPlace, fatherId, motherId }]
+// persons: [{ localId, given, patronymic, surname, sex, fsftid,
+//              birthDate, birthPlace, deathDate, deathPlace,
+//              father: RelRef|null, mother: RelRef|null,
+//              spouse: RelRef|null, marriageDate, marriagePlace,
+//              children: RelRef[] }]
 let persons = [];
 let nextLocalId = 1;
 
-// Якщо не null — форми зараз у режимі РЕДАГУВАННЯ цього запису (не додавання нового).
-let editingAnchorId = null;
+// Якщо не null — форма зараз у режимі РЕДАГУВАННЯ цього запису (не додавання нового).
 let editingPersonId = null;
+// Зовнішні (за _FSFTID) діти, додані в поточній чернетці форми, ще не збережені в persons.
+let childExtDraft = [];
 
 function loadDraft() {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return;
-    const data = JSON.parse(raw);
-    if (Array.isArray(data.persons)) persons = data.persons;
-    if (Number.isFinite(data.nextLocalId)) nextLocalId = data.nextLocalId;
+    const parsed = JSON.parse(raw);
+    const migrated = migrateDraft(parsed);
+    persons = migrated.persons;
+    nextLocalId = migrated.nextLocalId;
+    if ((parsed.version || 1) < CURRENT_DRAFT_VERSION) {
+      showToast('Стару чернетку оновлено до нового формату (зв’язки тепер через код FSFTID).');
+    }
   } catch (err) {
     console.error('Не вдалося завантажити збережену чернетку:', err);
     showToast('⚠️ Збережена чернетка пошкоджена — починаємо з чистого списку.');
@@ -60,7 +78,7 @@ function loadDraft() {
 }
 function saveDraft() {
   try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ persons, nextLocalId }));
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ version: CURRENT_DRAFT_VERSION, persons, nextLocalId }));
   } catch (err) {
     console.error('Не вдалося зберегти чернетку:', err);
     showToast('⚠️ Не вдалося зберегти список у цьому браузері (сховище переповнене чи заблоковане) — після оновлення сторінки список може зникнути.');
@@ -68,7 +86,6 @@ function saveDraft() {
 }
 
 function personDisplayLabel(p) {
-  if (p.isAnchor) return `⚓ ${p.label || p.fsftid || '(якір без назви)'}`;
   const name = `${p.given || ''} ${p.patronymic || ''} ${p.surname || ''}`.replace(/\s+/g, ' ').trim() || '(без імені)';
   const years = [p.birthDate, p.deathDate].filter(Boolean).join('–');
   return years ? `${name} (${years})` : name;
@@ -76,9 +93,16 @@ function personDisplayLabel(p) {
 
 function render() {
   renderList();
-  renderParentSelects();
+  renderRelSelects();
   document.getElementById('pe-count').textContent = `${persons.length} ос${persons.length === 1 ? 'оба' : 'іб'} у базі`;
   saveDraft();
+}
+
+// Особа X посилається (як батько/мати/чоловік-дружина/дитина) на особу id?
+function referencesLocalPerson(p, id) {
+  const refIsLocal = (ref) => ref && ref.kind === 'local' && ref.localId === id;
+  return refIsLocal(p.father) || refIsLocal(p.mother) || refIsLocal(p.spouse) ||
+    (p.children || []).some(refIsLocal);
 }
 
 function renderList() {
@@ -88,14 +112,17 @@ function renderList() {
     return;
   }
   el.innerHTML = persons.map(p => {
-    const cls = p.isAnchor ? 'pe-anchor' : (p.sex === 'M' ? 'pe-person-m' : p.sex === 'F' ? 'pe-person-f' : '');
-    const parents = [];
-    if (p.fatherId) parents.push('батько: ' + personDisplayLabel(persons.find(x => x.localId === p.fatherId) || {}));
-    if (p.motherId) parents.push('мати: ' + personDisplayLabel(persons.find(x => x.localId === p.motherId) || {}));
+    const cls = p.sex === 'M' ? 'pe-person-m' : p.sex === 'F' ? 'pe-person-f' : '';
+    const meta = [];
+    if (p.fsftid) meta.push(`FSFTID: ${esc(p.fsftid)}`);
+    if (p.father) meta.push('батько: ' + esc(refLabel(p.father, persons)));
+    if (p.mother) meta.push('мати: ' + esc(refLabel(p.mother, persons)));
+    if (p.spouse) meta.push('чоловік/дружина: ' + esc(refLabel(p.spouse, persons)) + (p.marriageDate ? ` (шлюб: ${esc(p.marriageDate)})` : ''));
+    if (p.children && p.children.length) meta.push('діти: ' + p.children.map(c => esc(refLabel(c, persons))).join(', '));
     return `
       <div class="pe-person ${cls}">
         <span class="pe-person-main">${esc(personDisplayLabel(p))}</span>
-        <span class="pe-person-meta">${p.fsftid && !p.isAnchor ? `FSFTID: ${esc(p.fsftid)} · ` : ''}${esc(parents.join(' · '))}</span>
+        <span class="pe-person-meta">${meta.join(' · ')}</span>
         <button class="pe-person-edit" data-id="${esc(p.localId)}" title="Редагувати">✏️</button>
         <button class="pe-person-del" data-id="${esc(p.localId)}" title="Видалити">🗑</button>
       </div>`;
@@ -106,82 +133,115 @@ function renderList() {
   el.querySelectorAll('.pe-person-del').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.id;
-      // Якщо цю особу вказано батьком/матір'ю в когось іншого — попереджаємо,
-      // а не видаляємо мовчки (втратиться зв'язок непомітно для користувача).
-      const dependents = persons.filter(p => p.fatherId === id || p.motherId === id);
-      if (dependents.length && !confirm(`Цю особу вказано батьком/матір'ю у ${dependents.length} записах. Видалити все одно? (зв'язок просто очиститься)`)) return;
+      const dependents = persons.filter(p => p.localId !== id && referencesLocalPerson(p, id));
+      if (dependents.length && !confirm(`Цю особу вказано батьком/матір'ю/чоловіком(дружиною)/дитиною у ${dependents.length} записах. Видалити все одно? (ці зв'язки просто очистяться)`)) return;
       persons = persons.filter(p => p.localId !== id);
       persons.forEach(p => {
-        if (p.fatherId === id) p.fatherId = '';
-        if (p.motherId === id) p.motherId = '';
+        if (p.father && p.father.kind === 'local' && p.father.localId === id) p.father = null;
+        if (p.mother && p.mother.kind === 'local' && p.mother.localId === id) p.mother = null;
+        if (p.spouse && p.spouse.kind === 'local' && p.spouse.localId === id) { p.spouse = null; p.marriageDate = ''; p.marriagePlace = ''; }
+        p.children = (p.children || []).filter(c => !(c.kind === 'local' && c.localId === id));
       });
-      if (editingAnchorId === id) cancelAnchorEdit();
       if (editingPersonId === id) cancelPersonEdit();
       render();
     });
   });
 }
 
-function renderParentSelects() {
-  const options = '<option value="">—</option>' + persons.map(p =>
-    `<option value="${esc(p.localId)}">${esc(personDisplayLabel(p))}</option>`).join('');
-  const fatherSel = document.getElementById('pFather');
-  const motherSel = document.getElementById('pMother');
-  const prevFather = fatherSel.value, prevMother = motherSel.value;
-  fatherSel.innerHTML = options;
-  motherSel.innerHTML = options;
-  if (persons.some(p => p.localId === prevFather)) fatherSel.value = prevFather;
-  if (persons.some(p => p.localId === prevMother)) motherSel.value = prevMother;
+// ---- Заповнення селектів (Батько/Мати/Чоловік-Дружина/Діти) ----
+function setOptionsKeepingValue(selectId, candidates) {
+  const sel = document.getElementById(selectId);
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— не обрано —</option>' +
+    candidates.map(p => `<option value="${esc(p.localId)}">${esc(personDisplayLabel(p))}</option>`).join('');
+  if (candidates.some(p => p.localId === prev)) sel.value = prev;
+}
+function setMultiOptionsKeepingSelection(selectId, candidates) {
+  const sel = document.getElementById(selectId);
+  const prevSelected = new Set(Array.from(sel.selectedOptions).map(o => o.value));
+  sel.innerHTML = candidates.map(p => `<option value="${esc(p.localId)}">${esc(personDisplayLabel(p))}</option>`).join('');
+  Array.from(sel.options).forEach(o => { if (prevSelected.has(o.value)) o.selected = true; });
 }
 
-// Визначає, чи це якір, чи звичайна особа, і скеровує в потрібну форму редагування.
+function renderRelSelects() {
+  const editingId = editingPersonId;
+  const forParent = persons.filter(p => p.localId !== editingId && (!editingId || canSetParent(persons, editingId, p.localId)));
+  const forSpouse = persons.filter(p => p.localId !== editingId);
+  const forChild = persons.filter(p => p.localId !== editingId && (!editingId || canSetChild(persons, editingId, p.localId)));
+
+  setOptionsKeepingValue('pFatherLocal', forParent);
+  setOptionsKeepingValue('pMotherLocal', forParent);
+  setOptionsKeepingValue('pSpouseLocal', forSpouse);
+  setMultiOptionsKeepingSelection('pChildrenLocal', forChild);
+}
+
+// ---- "Ексклюзивна пара" полів: обрав локальну особу зі списку → чистимо
+// поле FSFTID, і навпаки — ввів FSFTID → скидаємо вибір у списку. ----
+function wireExclusivePair(selectId, fsftidId, labelId) {
+  const sel = document.getElementById(selectId);
+  const fs = document.getElementById(fsftidId);
+  const lb = document.getElementById(labelId);
+  sel.addEventListener('change', () => { if (sel.value) { fs.value = ''; lb.value = ''; } });
+  fs.addEventListener('input', () => { if (fs.value.trim()) sel.value = ''; });
+}
+wireExclusivePair('pFatherLocal', 'pFatherFsftid', 'pFatherLabel');
+wireExclusivePair('pMotherLocal', 'pMotherFsftid', 'pMotherLabel');
+wireExclusivePair('pSpouseLocal', 'pSpouseFsftid', 'pSpouseLabel');
+
+function readRef(selectId, fsftidId, labelId) {
+  const localId = document.getElementById(selectId).value;
+  if (localId) return localRef(localId);
+  const fsftid = document.getElementById(fsftidId).value.trim();
+  if (fsftid) return externalRef(fsftid, document.getElementById(labelId).value.trim());
+  return null;
+}
+function writeRef(ref, selectId, fsftidId, labelId) {
+  const sel = document.getElementById(selectId), fs = document.getElementById(fsftidId), lb = document.getElementById(labelId);
+  if (!ref) { sel.value = ''; fs.value = ''; lb.value = ''; return; }
+  if (ref.kind === 'local') { sel.value = ref.localId; fs.value = ''; lb.value = ''; }
+  else { sel.value = ''; fs.value = ref.fsftid; lb.value = ref.label || ''; }
+}
+
+function renderChildExtChips() {
+  const el = document.getElementById('pChildExtChips');
+  el.innerHTML = childExtDraft.map((c, i) =>
+    `<span class="pe-chip">🔗 ${esc(c.label || c.fsftid)} (${esc(c.fsftid)})<button data-i="${i}" type="button">✕</button></span>`).join('');
+  el.querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => { childExtDraft.splice(+b.dataset.i, 1); renderChildExtChips(); });
+  });
+}
+document.getElementById('btn-add-child-ext').addEventListener('click', () => {
+  const fsftid = document.getElementById('pChildExtFsftid').value.trim();
+  const label = document.getElementById('pChildExtLabel').value.trim();
+  if (!fsftid) { showToast('Вкажи _FSFTID дитини, яку хочеш прив’язати.'); return; }
+  if (childExtDraft.some(c => c.fsftid.toLowerCase() === fsftid.toLowerCase())) { showToast('Ця дитина вже додана.'); return; }
+  childExtDraft.push({ fsftid, label });
+  document.getElementById('pChildExtFsftid').value = '';
+  document.getElementById('pChildExtLabel').value = '';
+  renderChildExtChips();
+});
+
+// ---- Синхронізація: коли для особи X обрано дітей (локальних), автоматично
+// проставляємо X (і, якщо є, чоловіка/дружину X) як батько/мати цих дітей —
+// АЛЕ тільки якщо в дитини це поле ще порожнє (не перезаписуємо мовчки). ----
+function syncChildrenParentage(personLocalId, person, childRefs) {
+  const selfSlot = person.sex === 'F' ? 'mother' : 'father'; // якщо стать невідома — за замовчуванням "батько"
+  const otherSlot = selfSlot === 'father' ? 'mother' : 'father';
+  const spouseLocalId = person.spouse && person.spouse.kind === 'local' ? person.spouse.localId : null;
+  for (const childRef of childRefs) {
+    if (childRef.kind !== 'local') continue;
+    const child = persons.find(x => x.localId === childRef.localId);
+    if (!child) continue;
+    if (!child[selfSlot]) child[selfSlot] = localRef(personLocalId);
+    if (spouseLocalId && !child[otherSlot]) child[otherSlot] = localRef(spouseLocalId);
+  }
+}
+
+// ---- Редагування/додавання особи ----
 function startEdit(id) {
   const p = persons.find(x => x.localId === id);
   if (!p) return;
-  if (p.isAnchor) startAnchorEdit(p); else startPersonEdit(p);
-}
-
-// ---- Редагування/додавання якоря ----
-function startAnchorEdit(p) {
-  editingAnchorId = p.localId;
-  document.getElementById('anchorFsftid').value = p.fsftid || '';
-  document.getElementById('anchorLabel').value = p.label || '';
-  document.getElementById('btn-add-anchor').textContent = '💾 Зберегти зміни';
-  document.getElementById('btn-cancel-anchor').style.display = 'inline-flex';
-  document.getElementById('anchorFsftid').scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
-function cancelAnchorEdit() {
-  editingAnchorId = null;
-  document.getElementById('anchorFsftid').value = '';
-  document.getElementById('anchorLabel').value = '';
-  document.getElementById('btn-add-anchor').textContent = '➕ Додати якір';
-  document.getElementById('btn-cancel-anchor').style.display = 'none';
-}
-document.getElementById('btn-cancel-anchor').addEventListener('click', cancelAnchorEdit);
-document.getElementById('btn-add-anchor').addEventListener('click', () => {
-  const fsftid = document.getElementById('anchorFsftid').value.trim();
-  const label = document.getElementById('anchorLabel').value.trim();
-  if (!fsftid) { showToast('Вкажи _FSFTID якоря — без нього об’єднати з основним деревом не вийде.'); return; }
-
-  if (editingAnchorId) {
-    const p = persons.find(x => x.localId === editingAnchorId);
-    if (p) { p.fsftid = fsftid; p.label = label; }
-    cancelAnchorEdit();
-    render();
-    showToast('Зміни збережено.');
-    return;
-  }
-
-  persons.push({ localId: 'p' + (nextLocalId++), isAnchor: true, fsftid, label });
-  document.getElementById('anchorFsftid').value = '';
-  document.getElementById('anchorLabel').value = '';
-  render();
-  showToast('Якір додано.');
-});
-
-// ---- Редагування/додавання живої особи ----
-function startPersonEdit(p) {
-  editingPersonId = p.localId;
+  editingPersonId = id;
   document.getElementById('pGiven').value = p.given || '';
   document.getElementById('pPatronymic').value = p.patronymic || '';
   document.getElementById('pSurname').value = p.surname || '';
@@ -191,23 +251,40 @@ function startPersonEdit(p) {
   document.getElementById('pBirthPlace').value = p.birthPlace || '';
   document.getElementById('pDeathDate').value = p.deathDate || '';
   document.getElementById('pDeathPlace').value = p.deathPlace || '';
-  renderParentSelects(); // оновити список, перш ніж обирати, щоб сама особа не пропонувалась собі ж
-  document.getElementById('pFather').value = p.fatherId || '';
-  document.getElementById('pMother').value = p.motherId || '';
+  document.getElementById('pMarriageDate').value = p.marriageDate || '';
+  document.getElementById('pMarriagePlace').value = p.marriagePlace || '';
+
+  renderRelSelects(); // оновити списки (з урахуванням заборонених циклів), перш ніж проставляти значення
+  writeRef(p.father, 'pFatherLocal', 'pFatherFsftid', 'pFatherLabel');
+  writeRef(p.mother, 'pMotherLocal', 'pMotherFsftid', 'pMotherLabel');
+  writeRef(p.spouse, 'pSpouseLocal', 'pSpouseFsftid', 'pSpouseLabel');
+
+  const localChildIds = new Set((p.children || []).filter(c => c.kind === 'local').map(c => c.localId));
+  Array.from(document.getElementById('pChildrenLocal').options).forEach(o => { o.selected = localChildIds.has(o.value); });
+  childExtDraft = (p.children || []).filter(c => c.kind === 'external').map(c => ({ fsftid: c.fsftid, label: c.label }));
+  renderChildExtChips();
+
   document.getElementById('btn-add-person').textContent = '💾 Зберегти зміни';
   document.getElementById('btn-cancel-person').style.display = 'inline-flex';
   document.getElementById('pGiven').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
+
 function cancelPersonEdit() {
   editingPersonId = null;
-  ['pGiven', 'pPatronymic', 'pSurname', 'pFsftid', 'pBirthDate', 'pBirthPlace', 'pDeathDate', 'pDeathPlace'].forEach(id => document.getElementById(id).value = '');
+  ['pGiven', 'pPatronymic', 'pSurname', 'pFsftid', 'pBirthDate', 'pBirthPlace', 'pDeathDate', 'pDeathPlace',
+    'pMarriageDate', 'pMarriagePlace'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('pSex').value = '';
-  document.getElementById('pFather').value = '';
-  document.getElementById('pMother').value = '';
-  document.getElementById('btn-add-person').textContent = '➕ Додати особу';
+  writeRef(null, 'pFatherLocal', 'pFatherFsftid', 'pFatherLabel');
+  writeRef(null, 'pMotherLocal', 'pMotherFsftid', 'pMotherLabel');
+  writeRef(null, 'pSpouseLocal', 'pSpouseFsftid', 'pSpouseLabel');
+  Array.from(document.getElementById('pChildrenLocal').options).forEach(o => { o.selected = false; });
+  childExtDraft = [];
+  renderChildExtChips();
+  document.getElementById('btn-add-person').textContent = '➕ Додати людину';
   document.getElementById('btn-cancel-person').style.display = 'none';
 }
 document.getElementById('btn-cancel-person').addEventListener('click', cancelPersonEdit);
+
 document.getElementById('btn-add-person').addEventListener('click', () => {
   let given = document.getElementById('pGiven').value.trim();
   const surname = document.getElementById('pSurname').value.trim();
@@ -224,10 +301,24 @@ document.getElementById('btn-add-person').addEventListener('click', () => {
     given = givenWords.join(' ');
   }
 
-  const fatherId = document.getElementById('pFather').value;
-  const motherId = document.getElementById('pMother').value;
-  if ((fatherId && fatherId === editingPersonId) || (motherId && motherId === editingPersonId)) {
-    showToast('Особа не може бути власним батьком/матір’ю.');
+  const father = readRef('pFatherLocal', 'pFatherFsftid', 'pFatherLabel');
+  const mother = readRef('pMotherLocal', 'pMotherFsftid', 'pMotherLabel');
+  const spouse = readRef('pSpouseLocal', 'pSpouseFsftid', 'pSpouseLabel');
+  const childrenLocal = Array.from(document.getElementById('pChildrenLocal').selectedOptions).map(o => localRef(o.value));
+  const childrenExt = childExtDraft.map(c => externalRef(c.fsftid, c.label));
+  const children = [...childrenLocal, ...childrenExt];
+
+  // Захист від циклів (перевіряємо ще раз тут — на додачу до фільтрації в
+  // самих select'ах — про всяк випадок, якщо значення прийшло не з UI).
+  if (editingPersonId) {
+    if (father && father.kind === 'local' && !canSetParent(persons, editingPersonId, father.localId)) { showToast('Обраний батько створив би цикл у дереві (сам собі предок/нащадок).'); return; }
+    if (mother && mother.kind === 'local' && !canSetParent(persons, editingPersonId, mother.localId)) { showToast('Обрана мати створила б цикл у дереві (сама собі предок/нащадок).'); return; }
+    for (const c of childrenLocal) {
+      if (!canSetChild(persons, editingPersonId, c.localId)) { showToast('Одна з обраних дітей створила б цикл у дереві — вибір не збережено для неї.'); return; }
+    }
+  }
+  if (spouse && spouse.kind === 'local' && !canSetSpouse(editingPersonId || '', spouse.localId)) {
+    showToast('Особа не може бути власним чоловіком/дружиною.');
     return;
   }
 
@@ -240,31 +331,38 @@ document.getElementById('btn-add-person').addEventListener('click', () => {
     birthPlace: document.getElementById('pBirthPlace').value.trim(),
     deathDate: document.getElementById('pDeathDate').value.trim(),
     deathPlace: document.getElementById('pDeathPlace').value.trim(),
-    fatherId, motherId,
+    father, mother, spouse,
+    marriageDate: document.getElementById('pMarriageDate').value.trim(),
+    marriagePlace: document.getElementById('pMarriagePlace').value.trim(),
+    children,
   };
 
+  let savedPerson;
   if (editingPersonId) {
     const p = persons.find(x => x.localId === editingPersonId);
-    if (p) Object.assign(p, fields);
+    if (p) { Object.assign(p, fields); savedPerson = p; }
+    syncChildrenParentage(editingPersonId, savedPerson, children);
     cancelPersonEdit();
     render();
     showToast('Зміни збережено.');
     return;
   }
 
-  persons.push({ localId: 'p' + (nextLocalId++), isAnchor: false, ...fields });
+  const localId = 'p' + (nextLocalId++);
+  savedPerson = { localId, ...fields };
+  persons.push(savedPerson);
+  syncChildrenParentage(localId, savedPerson, children);
   cancelPersonEdit();
   render();
-  showToast('Особу додано.');
+  showToast('Людину додано.');
 });
 
 // ---- Очистити все ----
 document.getElementById('btn-clear-all').addEventListener('click', () => {
   if (!persons.length) return;
-  if (!confirm('Очистити всю базу живих родичів у цьому редакторі? Це не можна скасувати.')) return;
+  if (!confirm('Очистити всю базу людей у цьому редакторі? Це не можна скасувати.')) return;
   persons = [];
   nextLocalId = 1;
-  cancelAnchorEdit();
   cancelPersonEdit();
   render();
 });
@@ -275,24 +373,15 @@ document.getElementById('btn-clear-all').addEventListener('click', () => {
 // лишається на диску як повноцінна резервна копія (і його завжди можна
 // підвантажити назад кнопкою "Завантажити базу", якщо треба щось доправити).
 document.getElementById('btn-save-base').addEventListener('click', () => {
-  if (!persons.length) { showToast('Спочатку додай хоча б одну особу чи якір.'); return; }
+  if (!persons.length) { showToast('Спочатку додай хоча б одну людину.'); return; }
   const gedcomText = buildBaseGedcom(persons);
-  const blob = new Blob(['\uFEFF' + gedcomText], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'living_base.ged';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  downloadGedcom('living_base.ged', gedcomText);
 
   persons = [];
   nextLocalId = 1;
-  cancelAnchorEdit();
   cancelPersonEdit();
   render();
-  showToast('Файл living_base.ged збережено. Список очищено — можна заводити наступних осіб.');
+  showToast('Файл living_base.ged збережено. Список очищено — можна заводити наступних людей.');
 });
 
 // ---- Завантажити базу (.ged) — ЗАМІНЮЄ поточний список, з можливістю
@@ -312,6 +401,10 @@ document.getElementById('fileInputBase').addEventListener('change', async (e) =>
   e.target.value = '';
 });
 
+// Розбирає GEDCOM-файл бази (наш власний формат: реальні особи + автоматично
+// згенеровані заглушки _ANCHOR Y для зовнішніх посилань) назад у чернетки.
+// Підтримує на кожну особу лише ПЕРШУ сім'ю, де вона чоловік/дружина
+// (тобто один шлюб/спискок дітей на людину) — обмеження поточної моделі.
 function importFromGedcom(text, opts = {}) {
   const { individuals, families } = buildIndex(text);
   if (!opts.silent && persons.length &&
@@ -319,40 +412,52 @@ function importFromGedcom(text, opts = {}) {
 
   persons = [];
   nextLocalId = 1;
-  cancelAnchorEdit();
   cancelPersonEdit();
 
-  const idRemap = new Map(); // id з файлу -> новий localId у цьому редакторі
-  for (const p of individuals.values()) idRemap.set(p.id, 'p' + (nextLocalId++));
+  const idRemap = new Map();      // file id (реальна особа) -> новий localId
+  const anchorInfo = new Map();   // file id (якір) -> { fsftid, label }
+  for (const p of individuals.values()) {
+    if (p.isAnchor) anchorInfo.set(p.id, { fsftid: p.fsftid || '', label: (p.name || '').replace(/\//g, '').trim() });
+    else idRemap.set(p.id, 'p' + (nextLocalId++));
+  }
+
+  function resolveRef(fileId) {
+    if (!fileId) return null;
+    if (idRemap.has(fileId)) return localRef(idRemap.get(fileId));
+    if (anchorInfo.has(fileId)) { const a = anchorInfo.get(fileId); return a.fsftid ? externalRef(a.fsftid, a.label) : null; }
+    return null;
+  }
 
   for (const p of individuals.values()) {
+    if (p.isAnchor) continue;
     const localId = idRemap.get(p.id);
-    if (p.isAnchor) {
-      persons.push({ localId, isAnchor: true, fsftid: p.fsftid || '', label: (p.name || '').replace(/\//g, '').trim() });
-      continue;
-    }
-    let fatherId = '', motherId = '';
+
+    let father = null, mother = null;
     const famcId = p.famc[0];
-    const fam = famcId ? families.get(famcId) : null;
-    if (fam) {
-      if (fam.husb && idRemap.has(fam.husb)) fatherId = idRemap.get(fam.husb);
-      if (fam.wife && idRemap.has(fam.wife)) motherId = idRemap.get(fam.wife);
+    const famc = famcId ? families.get(famcId) : null;
+    if (famc) { father = resolveRef(famc.husb); mother = resolveRef(famc.wife); }
+
+    let spouse = null, marriageDate = '', marriagePlace = '', children = [];
+    const famsId = p.fams[0]; // лише перший шлюб — обмеження поточної моделі
+    const fams = famsId ? families.get(famsId) : null;
+    if (fams) {
+      const otherFileId = fams.husb === p.id ? fams.wife : fams.husb;
+      spouse = resolveRef(otherFileId);
+      marriageDate = fams.marr?.date || '';
+      marriagePlace = fams.marr?.plac || '';
+      // Локальних дітей не дублюємо тут — їхній зв'язок і так відновлюється
+      // через власне FAMC кожної дитини нижче; лишаємо тільки зовнішніх
+      // (за _FSFTID), бо в них немає власного запису father/mother у базі.
+      children = fams.chil.map(resolveRef).filter(r => r && r.kind === 'external');
     }
-    // GIVN за конвенцією застосунку: перше слово — ім'я, решта — по батькові
-    // ВАЖЛИВО: прибираємо саме сегмент "/Прізвище/" ЦІЛКОМ (разом із текстом
-    // усередині), а не просто символи "/" — інакше прізвище лишається
-    // "приклеєним" до по-батькові (напр. "Оксана Олександрівна Добротворська"
-    // після .replace(/\//g,'') виглядає як 3 слова "імені", і по-батькові
-    // помилково поглинає прізвище — саме це й спричиняло подвоєння).
+
+    // GIVN за конвенцією застосунку: перше слово — ім'я, решта — по батькові.
     const surnameFromName = (p.name.match(/\/([^/]*)\//) || [, ''])[1];
     const givnRaw = p.givn || (p.name || '').replace(/\/[^/]*\//, '').trim();
     const givnParts = givnRaw.split(/\s+/).filter(Boolean);
     const given = givnParts[0] || '';
     let patronymic = givnParts.slice(1).join(' ');
     const surname = p.surn || surnameFromName;
-    // Самолікування: якщо файл прийшов зі СТАРОЇ версії редактора (де був
-    // баг і прізвище "приклеювалось" до по-батькові) — прибираємо той
-    // повтор тут-таки при завантаженні, а не тягнемо биту дату далі.
     if (surname) {
       const patrWords = patronymic.split(/\s+/);
       while (patrWords.length && patrWords[patrWords.length - 1].toLowerCase() === surname.toLowerCase()) {
@@ -360,16 +465,14 @@ function importFromGedcom(text, opts = {}) {
       }
       patronymic = patrWords.join(' ');
     }
+
     persons.push({
-      localId, isAnchor: false,
-      given,
-      patronymic,
-      surname,
+      localId, given, patronymic, surname,
       sex: p.sex === 'M' || p.sex === 'F' ? p.sex : '',
       fsftid: p.fsftid || '',
       birthDate: p.birt.date || '', birthPlace: p.birt.plac || '',
       deathDate: p.deat.date || '', deathPlace: p.deat.plac || '',
-      fatherId, motherId,
+      father, mother, spouse, marriageDate, marriagePlace, children,
     });
   }
   render();
@@ -388,3 +491,40 @@ try {
     showToast('Базу підвантажено з головного вікна для редагування.');
   }
 } catch { /* немає sessionStorage чи пошкоджені дані — просто ігноруємо */ }
+
+// Якщо редактор відкрито кнопкою "➕" на картці в перегляді дерева — там уже
+// лежить запит "додай мені {rel}" із _FSFTID тієї особи. Підхоплюємо й
+// одразу проставляємо відповідне поле зв'язку в порожній формі нової людини.
+const ADD_RELATIVE_KEY = 'gedcom_people_add_relative_v1';
+try {
+  const raw = sessionStorage.getItem(ADD_RELATIVE_KEY);
+  if (raw) {
+    sessionStorage.removeItem(ADD_RELATIVE_KEY);
+    applyAddRelativePrefill(JSON.parse(raw));
+  }
+} catch { /* биті дані в sessionStorage — просто ігноруємо, форма лишається порожньою */ }
+
+function applyAddRelativePrefill(req) {
+  cancelPersonEdit(); // чистий старт форми
+  const ref = externalRef(req.fsftid, req.label || '');
+  const RELATION_LABELS = { father: 'батька', mother: 'матір', spouse: 'чоловіка/дружину', child: 'дитину' };
+
+  if (req.rel === 'father' || req.rel === 'mother') {
+    // Нова людина стає БАТЬКОМ/МАТІР'Ю цільової особи -> цільова особа
+    // потрапляє в список "Діти" нової людини (як зовнішнє посилання).
+    childExtDraft = [{ fsftid: req.fsftid, label: req.label || '' }];
+    renderChildExtChips();
+    document.getElementById('pSex').value = req.rel === 'father' ? 'M' : 'F';
+  } else if (req.rel === 'spouse') {
+    writeRef(ref, 'pSpouseLocal', 'pSpouseFsftid', 'pSpouseLabel');
+  } else if (req.rel === 'child') {
+    // Нова людина стає ДИТИНОЮ цільової особи -> проставляємо цільову особу
+    // як батька чи матір, залежно від її статі (за замовчуванням — батько).
+    if (req.targetSex === 'F') writeRef(ref, 'pMotherLocal', 'pMotherFsftid', 'pMotherLabel');
+    else writeRef(ref, 'pFatherLocal', 'pFatherFsftid', 'pFatherLabel');
+  }
+
+  document.getElementById('pGiven').focus();
+  const relLabel = RELATION_LABELS[req.rel] || req.rel;
+  showToast(`Заповни ім'я — цю людину буде додано як ${relLabel} для «${req.label || req.fsftid}».`);
+}

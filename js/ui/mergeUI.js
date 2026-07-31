@@ -1,6 +1,13 @@
 // ===================== "ЖИВІ РОДИЧІ" — РЕДАКТОР І ОБ'ЄДНАННЯ =====================
 import { state } from '../state.js';
 import { mergeBaseIntoMain } from '../engine/mergeBase.js';
+import { buildIndex, validateStructure } from '../engine/analysis.js';
+import { openPageOrNavigate } from './navUtil.js';
+import { downloadGedcom } from '../core/download.js';
+
+// Запам'ятовуємо, у ЯКИЙ саме файл щойно домержили (оригінал чи переклад) —
+// щоб кнопка "Зберегти об'єднаний файл" зберігала саме його, а не будь-що.
+let lastMergeTarget = null; // 'original' | 'translated' | null
 
 let baseFileContent = '';
 let baseFileName = '';
@@ -9,9 +16,10 @@ function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').
 
 export function initLivingPeopleUI() {
   document.getElementById('btn-open-people-editor').addEventListener('click', () => {
-    // НАВМИСНО без іменованого вікна (той самий урок, що й з деревом) —
-    // завжди нова вкладка, щоб випадково не влізти в чужу стару вкладку.
-    window.open('people-editor.html', '_blank');
+    // Спершу пробуємо нову вкладку; якщо середовище (напр. Android WebView
+    // без підтримки кількох вікон) мовчки цього не підтримує — переходимо
+    // на редактор у цій самій вкладці (openPageOrNavigate сама розбереться).
+    openPageOrNavigate('people-editor.html');
   });
 
   document.getElementById('btn-choose-base-file').addEventListener('click', () => {
@@ -27,6 +35,8 @@ export function initLivingPeopleUI() {
       document.getElementById('baseFileLabel').textContent = `✅ ${file.name}`;
       document.getElementById('baseFileLabel').style.color = 'var(--green)';
       document.getElementById('btn-edit-base').style.display = 'inline-flex';
+      lastMergeTarget = null;
+      document.getElementById('btn-save-merged').style.display = 'none';
       refreshMergeControls();
     } catch (err) {
       console.error(err);
@@ -43,10 +53,11 @@ export function initLivingPeopleUI() {
     try {
       sessionStorage.setItem('gedcom_living_base_pending_v1', baseFileContent);
     } catch { /* не критично — просто відкриється порожній редактор */ }
-    window.open('people-editor.html', '_blank');
+    openPageOrNavigate('people-editor.html');
   });
 
   document.getElementById('btn-do-merge').addEventListener('click', doMerge);
+  document.getElementById('btn-save-merged').addEventListener('click', saveMergedFile);
 }
 
 // Показує/оновлює доступність елементів керування об'єднанням — викликається
@@ -78,13 +89,15 @@ function doMerge() {
     outcome = mergeBaseIntoMain(targetContent, baseFileContent);
   } catch (err) {
     console.error('Помилка об’єднання:', err);
-    showResult('⚠️ Не вдалося об’єднати файли — перевір, що обраний файл справді база, збережена редактором живих родичів.', true);
+    showResult('⚠️ Не вдалося об’єднати файли — перевір, що обраний файл справді база, збережена редактором людей.', true);
     return;
   }
 
   const { mergedContent, addedCount, unmatchedAnchors } = outcome;
   if (useTranslated) state.translatedContent = mergedContent;
   else state.rawContent = mergedContent;
+  lastMergeTarget = useTranslated ? 'translated' : 'original';
+  document.getElementById('btn-save-merged').style.display = 'inline-flex';
 
   // Оновлюємо статистику на кроці 1, як після звичайного завантаження файлу
   const lines = mergedContent.split('\n');
@@ -97,11 +110,34 @@ function doMerge() {
   if (unmatchedAnchors.length) {
     msg += `<br>⚠️ Не знайдено в основному файлі ${unmatchedAnchors.length} якір(ів) — їхні гілки додані без прив'язки: ${unmatchedAnchors.map(esc).join(', ')}`;
   }
-  showResult(msg, unmatchedAnchors.length > 0);
+
+  // Швидка перевірка цілісності одразу після об'єднання — щоб биті посилання
+  // (якщо раптом трапились) було видно тут, а не лише окремим переходом
+  // у вкладку «Аналіз».
+  const { individuals: mIndi, families: mFam, duplicateIds } = buildIndex(mergedContent);
+  const mergeIssues = validateStructure(mIndi, mFam, duplicateIds).filter(i => i.level === 'error');
+  let hasErrors = unmatchedAnchors.length > 0;
+  if (mergeIssues.length) {
+    hasErrors = true;
+    msg += `<br>⛔ Перевірка цілісності знайшла ${mergeIssues.length} проблем(и) у результаті — перевір вкладку «Аналіз» → «Перевірка структури» перед збереженням.`;
+  }
+  showResult(msg, hasErrors);
 }
 
 function showResult(html, isWarning) {
   const el = document.getElementById('mergeResult');
   el.style.color = isWarning ? 'var(--orange)' : 'var(--green)';
   el.innerHTML = html;
+}
+
+// Зберігає саме той файл, у який щойно домержили людей (оригінал або
+// переклад) — читаємо його з state.* у момент кліку (не з кешованої
+// змінної), щоб завжди зберегти найсвіжіший вміст.
+function saveMergedFile() {
+  if (!lastMergeTarget) return;
+  const content = lastMergeTarget === 'translated' ? state.translatedContent : state.rawContent;
+  if (!content) { showResult('⚠️ Немає що зберігати — спробуй об’єднати ще раз.', true); return; }
+  const base = (state.fileName || 'gedcom').replace(/\.[^.]+$/, '');
+  const suffix = lastMergeTarget === 'translated' ? '_ukr_обʼєднано.ged' : '_обʼєднано.ged';
+  downloadGedcom(base + suffix, content);
 }

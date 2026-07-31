@@ -15,3 +15,14 @@ export function downloadText(filename, content, mime = 'text/plain;charset=utf-8
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+// ---- Окремо для .ged: НЕ використовуємо 'text/plain' ----
+// На Android (і в деяких Chrome-подібних завантажувачах) MIME 'text/plain'
+// однозначно асоціюється з розширенням .txt — і якщо ім'я файлу закінчується
+// на .ged, завантажувач "виправляє" його, дописуючи .txt (виходить
+// "файл.ged.txt" або й просто "файл.txt"). 'application/octet-stream' не має
+// такої стандартної відповідності розширенню, тож ім'я файлу лишається як є.
+export function downloadGedcom(filename, content) {
+  const safeName = (filename.endsWith('.ged') ? filename : filename.replace(/\.[^.]+$/, '') + '.ged');
+  downloadText(safeName, content, 'application/octet-stream');
+}

@@ -319,10 +319,13 @@ function renderTreeBreaks(tb) {
 
   let html = '';
   if (tb.items.length) {
+    html += `<div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;">
+      Дорослі особи (18+) з повним ПІБ, чий рік народження (1800–${new Date().getFullYear()}) відомий точно
+      або визначається з непрямих даних, і в яких немає зв'язку з батьками — тобто саме тут варто шукати далі.
+    </div>`;
     html += tb.items.slice(0, 300).map(i => `
       <div class="dup-member">
-        ${fsftidLink(i.fsftid)} — ${esc(i.name)}${i.birthYear ? ` (нар. ${i.birthYear})` : ''}
-        <div style="color:var(--muted);font-size:.78rem;">${esc(i.reason)}</div>
+        ${fsftidLink(i.fsftid)} — ${esc(i.name)} (нар. ${i.birthYear}${i.birthYearEstimated ? ', оцінка' : ''})
       </div>`).join('');
     if (tb.items.length > 300) html += `<div class="empty-hint">…і ще ${tb.items.length - 300}. Завантаж повний звіт нижче.</div>`;
   }
@@ -390,7 +393,7 @@ export function downloadAnalysisReport() {
   }
   lines.push('');
   lines.push(`=== ОБРИВИ ДЕРЕВА (${a.treeBreaks.items.length} межових осіб, ${a.treeBreaks.familyGaps.length} розірваних зв'язків) ===`);
-  for (const i of a.treeBreaks.items) lines.push(`${i.fsftid || '(без FSFTID)'} — ${i.name}${i.birthYear ? ` (нар. ${i.birthYear})` : ''} — ${i.reason}`);
+  for (const i of a.treeBreaks.items) lines.push(`${i.fsftid || '(без FSFTID)'} — ${i.name} (нар. ${i.birthYear}${i.birthYearEstimated ? ', оцінка' : ''})`);
   if (a.treeBreaks.familyGaps.length) {
     lines.push('\nРозірвані сімейні зв\'язки:');
     for (const g of a.treeBreaks.familyGaps) lines.push(`  Сім'я @${g.famId}@: відсутня особа (${g.role}, @${g.missingId}@)${g.knownFsftid ? ` — шукати через ${g.knownName} (${g.knownFsftid})` : ''}`);

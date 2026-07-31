@@ -1,17 +1,170 @@
-// ===================== ПОБУДОВА "БАЗОВОГО" GEDCOM (живі родичі) =====================
-// Перетворює масив чернеток осіб (з редактора "Живі родичі") у валідний
-// GEDCOM-текст. Особи бувають двох видів:
-//  - "якір" (isAnchor: true) — заглушка-прив'язка до вже існуючої особи в
-//    основному файлі: несе лише _FSFTID (+ довідкову назву для самого
-//    редактора) і спеціальний тег _ANCHOR Y. Батька/матір такій особі
-//    вказувати не можна — вона сама є "коренем" для гілки живих нащадків.
-//  - звичайна жива особа — ім'я, стать, дати/місця (необов'язково),
-//    посилання на батька/матір (localId інших осіб у цьому ж списку,
-//    включно з якорями).
+// ===================== ПОБУДОВА "БАЗОВОГО" GEDCOM (вкладка "Люди") =====================
+// Перетворює масив чернеток осіб редактора у валідний GEDCOM-текст.
 //
-// Сім'ї визначаються автоматично: усі діти з однаковою парою (батько,мати)
-// потрапляють в одну сім'ю. Один із батьків може бути невідомий (порожній).
+// Кожна особа тепер однорідна (немає окремого типу "якір") — поля зв'язку
+// (father/mother/spouse/children) є RelRef: або 'local' (інша особа з цього ж
+// списку), або 'external' (уже існуюча в основному дереві людина, за її
+// _FSFTID). Для кожного унікального external-посилання тут автоматично
+// створюється одна заглушка-INDI з тегом _ANCHOR Y (дедуплікація за fsftid) —
+// саме її потім знаходить `mergeBaseIntoMain` в основному файлі.
+//
+// Сім'ї (FAM) будуються з трьох джерел одночасно (і об'єднуються, якщо
+// збігається пара батьків):
+//   1) явний шлюб (person.spouse) — так пара потрапляє у файл, НАВІТЬ якщо
+//      спільних дітей немає;
+//   2) father/mother кожної дитини;
+//   3) явний список children на батьківській формі (потрібен головно для
+//      зовнішніх дітей — у них немає власного father/mother запису тут).
+import { refKey, localRef } from '../peopleeditor/relRef.js';
+
+function unionMapKey(refA, refB) {
+  const a = refA ? refKey(refA) : '';
+  const b = refB ? refKey(refB) : '';
+  return [a, b].sort().join('~');
+}
+
+function sexOfRef(ref, byLocalId) {
+  if (!ref || ref.kind !== 'local') return '';
+  return byLocalId.get(ref.localId)?.sex || '';
+}
+
+/** Визначає, хто HUSB, а хто WIFE, за статтю (якщо відома); інакше лишає порядок як є. */
+function assignHusbWife(refA, refB, byLocalId) {
+  if (sexOfRef(refA, byLocalId) === 'F') return [refB, refA];
+  return [refA, refB];
+}
+
 export function buildBaseGedcom(persons) {
+  const byLocalId = new Map(persons.map(p => [p.localId, p]));
+
+  // ---- Крок 1: зібрати всі сім'ї (унії) з трьох джерел ----
+  const unions = new Map(); // key -> { refA, refB, marriageDate, marriagePlace, children: Map<key, ref> }
+  function getOrCreateUnion(refA, refB) {
+    if (!refA && !refB) return null;
+    const key = unionMapKey(refA, refB);
+    if (!unions.has(key)) {
+      unions.set(key, { refA, refB, marriageDate: '', marriagePlace: '', children: new Map() });
+    } else {
+      const u = unions.get(key);
+      if (!u.refA && refA) u.refA = refA;
+      if (!u.refB && refB) u.refB = refB;
+    }
+    return unions.get(key);
+  }
+  function addChild(union, ref) {
+    if (!union || !ref) return;
+    union.children.set(refKey(ref), ref);
+  }
+
+  for (const p of persons) {
+    if (p.spouse) {
+      const u = getOrCreateUnion(localRef(p.localId), p.spouse);
+      if (p.marriageDate && !u.marriageDate) u.marriageDate = p.marriageDate;
+      if (p.marriagePlace && !u.marriagePlace) u.marriagePlace = p.marriagePlace;
+    }
+  }
+  for (const p of persons) {
+    if (p.father || p.mother) {
+      addChild(getOrCreateUnion(p.father, p.mother), localRef(p.localId));
+    }
+  }
+  for (const p of persons) {
+    for (const childRef of (p.children || [])) {
+      addChild(getOrCreateUnion(localRef(p.localId), p.spouse), childRef);
+    }
+  }
+
+  // ---- Крок 2: GEDCOM id для реальних осіб бази ----
+  const indiId = new Map();
+  let indiNum = 1;
+  for (const p of persons) indiId.set(p.localId, `I${indiNum++}`);
+
+  // ---- Крок 3: дедупліковані якорі-заглушки для зовнішніх посилань ----
+  const externalAnchors = new Map(); // fsftid.toLowerCase() -> { gedId, label, original }
+  function anchorIdFor(ref) {
+    const key = ref.fsftid.toLowerCase();
+    if (!externalAnchors.has(key)) {
+      externalAnchors.set(key, { gedId: `I${indiNum++}`, label: ref.label || '', original: ref.fsftid });
+    } else if (ref.label && !externalAnchors.get(key).label) {
+      externalAnchors.get(key).label = ref.label;
+    }
+    return externalAnchors.get(key).gedId;
+  }
+  function gedcomIdOf(ref) {
+    if (!ref) return null;
+    return ref.kind === 'local' ? indiId.get(ref.localId) : anchorIdFor(ref);
+  }
+
+  // ---- Крок 4: FAM-записи ----
+  const famsOfLocal = new Map(); // localId -> [famGedId, ...]
+  const famcOfLocal = new Map(); // localId -> famGedId
+  const famLines = [];
+  let famNum = 1;
+  for (const u of unions.values()) {
+    if (!u.refA && !u.refB && !u.children.size) continue; // порожня — пропускаємо
+    const gid = `F${famNum++}`;
+    const [husbRef, wifeRef] = assignHusbWife(u.refA, u.refB, byLocalId);
+    const husbId = gedcomIdOf(husbRef);
+    const wifeId = gedcomIdOf(wifeRef);
+    if (husbRef?.kind === 'local') {
+      if (!famsOfLocal.has(husbRef.localId)) famsOfLocal.set(husbRef.localId, []);
+      famsOfLocal.get(husbRef.localId).push(gid);
+    }
+    if (wifeRef?.kind === 'local') {
+      if (!famsOfLocal.has(wifeRef.localId)) famsOfLocal.set(wifeRef.localId, []);
+      famsOfLocal.get(wifeRef.localId).push(gid);
+    }
+
+    const lines = [`0 @${gid}@ FAM`];
+    if (husbId) lines.push(`1 HUSB @${husbId}@`);
+    if (wifeId) lines.push(`1 WIFE @${wifeId}@`);
+    for (const childRef of u.children.values()) {
+      const cid = gedcomIdOf(childRef);
+      if (!cid) continue;
+      lines.push(`1 CHIL @${cid}@`);
+      if (childRef.kind === 'local') famcOfLocal.set(childRef.localId, gid);
+    }
+    if (u.marriageDate || u.marriagePlace) {
+      lines.push('1 MARR');
+      if (u.marriageDate) lines.push(`2 DATE ${u.marriageDate}`);
+      if (u.marriagePlace) lines.push(`2 PLAC ${u.marriagePlace}`);
+    }
+    famLines.push(...lines);
+  }
+
+  // ---- Крок 5: INDI-записи реальних осіб ----
+  const indiLines = [];
+  for (const p of persons) {
+    const id = indiId.get(p.localId);
+    indiLines.push(`0 @${id}@ INDI`);
+    const givn = [p.given, p.patronymic].map(s => (s || '').trim()).filter(Boolean).join(' ');
+    indiLines.push(`1 NAME ${givn} /${(p.surname || '').trim()}/`);
+    if (p.sex) indiLines.push(`1 SEX ${p.sex}`);
+    if (p.birthDate || p.birthPlace) {
+      indiLines.push('1 BIRT');
+      if (p.birthDate) indiLines.push(`2 DATE ${p.birthDate}`);
+      if (p.birthPlace) indiLines.push(`2 PLAC ${p.birthPlace}`);
+    }
+    if (p.deathDate || p.deathPlace) {
+      indiLines.push('1 DEAT');
+      if (p.deathDate) indiLines.push(`2 DATE ${p.deathDate}`);
+      if (p.deathPlace) indiLines.push(`2 PLAC ${p.deathPlace}`);
+    }
+    if (p.fsftid) indiLines.push(`1 _FSFTID ${p.fsftid}`);
+    const famc = famcOfLocal.get(p.localId);
+    if (famc) indiLines.push(`1 FAMC @${famc}@`);
+    for (const fams of (famsOfLocal.get(p.localId) || [])) indiLines.push(`1 FAMS @${fams}@`);
+  }
+
+  // ---- Крок 6: якорі-заглушки для зовнішніх осіб ----
+  const anchorLines = [];
+  for (const a of externalAnchors.values()) {
+    anchorLines.push(`0 @${a.gedId}@ INDI`);
+    if (a.label) anchorLines.push(`1 NAME ${a.label}`);
+    anchorLines.push(`1 _FSFTID ${a.original}`);
+    anchorLines.push('1 _ANCHOR Y');
+  }
+
   const lines = [
     '0 HEAD',
     '1 SOUR gedcom-translator-pro',
@@ -19,75 +172,11 @@ export function buildBaseGedcom(persons) {
     '2 VERS 5.5.1',
     '2 FORM LINEAGE-LINKED',
     '1 CHAR UTF-8',
-    '1 NOTE Базовий файл живих родичів (gedcom-translator-pro) — для об’єднання з основним GEDCOM за _FSFTID.',
+    '1 NOTE Файл людей, доданих вручну для довставляння у дерево (gedcom-translator-pro) — об’єднується з основним GEDCOM за _FSFTID.',
+    ...indiLines,
+    ...anchorLines,
+    ...famLines,
+    '0 TRLR',
   ];
-
-  const famKeyOf = p => `${p.fatherId || ''}|${p.motherId || ''}`;
-  const famMap = new Map(); // key -> { fatherId, motherId, childIds: [] }
-  for (const p of persons) {
-    if (p.isAnchor) continue; // якір нічиєю дитиною в цій базі бути не може
-    if (!p.fatherId && !p.motherId) continue;
-    const key = famKeyOf(p);
-    if (!famMap.has(key)) famMap.set(key, { fatherId: p.fatherId || '', motherId: p.motherId || '', childIds: [] });
-    famMap.get(key).childIds.push(p.localId);
-  }
-
-  const indiId = new Map();
-  let indiNum = 1;
-  for (const p of persons) indiId.set(p.localId, `I${indiNum++}`);
-
-  const famId = new Map();
-  let famNum = 1;
-  for (const key of famMap.keys()) famId.set(key, `F${famNum++}`);
-
-  const famsOf = new Map(); // localId -> [key,...] (де ця особа — батько/мати)
-  const famcOf = new Map(); // localId -> key (де ця особа — дитина)
-  for (const [key, fam] of famMap) {
-    if (fam.fatherId) { if (!famsOf.has(fam.fatherId)) famsOf.set(fam.fatherId, []); famsOf.get(fam.fatherId).push(key); }
-    if (fam.motherId) { if (!famsOf.has(fam.motherId)) famsOf.set(fam.motherId, []); famsOf.get(fam.motherId).push(key); }
-    for (const c of fam.childIds) famcOf.set(c, key);
-  }
-
-  for (const p of persons) {
-    const id = indiId.get(p.localId);
-    lines.push(`0 @${id}@ INDI`);
-    if (p.isAnchor) {
-      if (p.label) lines.push(`1 NAME ${p.label}`);
-      if (p.fsftid) lines.push(`1 _FSFTID ${p.fsftid}`);
-      lines.push('1 _ANCHOR Y');
-    } else {
-      // Конвенція застосунку: GIVN/NAME = "Ім'я По-батькові" одним полем
-      // (перше слово завжди ім'я, решта — по батькові) — так само, як інші
-      // звіти й переклад цього застосунку розбирають імена.
-      const givn = [p.given, p.patronymic].map(s => (s || '').trim()).filter(Boolean).join(' ');
-      const nameVal = `${givn} /${(p.surname || '').trim()}/`;
-      lines.push(`1 NAME ${nameVal}`);
-      if (p.sex) lines.push(`1 SEX ${p.sex}`);
-      if (p.birthDate || p.birthPlace) {
-        lines.push('1 BIRT');
-        if (p.birthDate) lines.push(`2 DATE ${p.birthDate}`);
-        if (p.birthPlace) lines.push(`2 PLAC ${p.birthPlace}`);
-      }
-      if (p.deathDate || p.deathPlace) {
-        lines.push('1 DEAT');
-        if (p.deathDate) lines.push(`2 DATE ${p.deathDate}`);
-        if (p.deathPlace) lines.push(`2 PLAC ${p.deathPlace}`);
-      }
-      if (p.fsftid) lines.push(`1 _FSFTID ${p.fsftid}`);
-    }
-    const fc = famcOf.get(p.localId);
-    if (fc) lines.push(`1 FAMC @${famId.get(fc)}@`);
-    for (const fs of (famsOf.get(p.localId) || [])) lines.push(`1 FAMS @${famId.get(fs)}@`);
-  }
-
-  for (const [key, fam] of famMap) {
-    const id = famId.get(key);
-    lines.push(`0 @${id}@ FAM`);
-    if (fam.fatherId) lines.push(`1 HUSB @${indiId.get(fam.fatherId)}@`);
-    if (fam.motherId) lines.push(`1 WIFE @${indiId.get(fam.motherId)}@`);
-    for (const c of fam.childIds) lines.push(`1 CHIL @${indiId.get(c)}@`);
-  }
-
-  lines.push('0 TRLR');
   return lines.join('\n');
 }

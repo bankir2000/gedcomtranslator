@@ -117,6 +117,15 @@ html, body {
 .tv-card-f { border-left: 5px solid #a83d63; }
 .tv-card-u { border-left: 5px solid #777; }
 
+.tv-card-add { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; margin-top: 2px; }
+.tv-add-btn {
+  font-size: 10px; line-height: 1; padding: 3px 5px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface2, var(--surface));
+  color: var(--text); cursor: pointer; white-space: nowrap;
+}
+.tv-add-btn:hover { background: var(--accent, #3d7dd6); color: #fff; border-color: transparent; }
+.tv-add-btn:active { transform: scale(0.95); }
+
 @media (max-width: 640px) {
   #treeViewToolbar { padding: 8px; gap: 8px; }
   .tv-root-label { font-size: .85rem; }

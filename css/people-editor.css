@@ -41,6 +41,26 @@ html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--te
 .pe-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .req { color: var(--red); }
 
+.pe-rel-block {
+  border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.pe-rel-title { font-size: .78rem; font-weight: 700; color: var(--muted); }
+.pe-rel-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pe-rel-row select { background: var(--bg); border: 2px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: .85rem; color: var(--text); font-family: inherit; min-width: 180px; }
+.pe-rel-row input { background: var(--bg); border: 2px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: .85rem; color: var(--text); font-family: inherit; min-width: 130px; }
+.pe-rel-row select:focus, .pe-rel-row input:focus { outline: none; border-color: var(--accent); }
+.pe-rel-or { font-size: .74rem; color: var(--muted); white-space: nowrap; }
+.pe-rel-label { min-width: 150px !important; }
+
+.pe-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pe-chip {
+  display: inline-flex; align-items: center; gap: 6px; background: var(--surface3);
+  border-radius: 999px; padding: 3px 6px 3px 12px; font-size: .78rem; color: var(--text);
+}
+.pe-chip button { background: none; border: none; color: var(--red); cursor: pointer; font-size: .85rem; padding: 2px 6px; }
+.pe-chip button:hover { background: rgba(var(--red-rgb), .15); border-radius: 999px; }
+
 .pe-list { display: flex; flex-direction: column; gap: 6px; }
 .pe-person {
   display: flex; align-items: center; gap: 10px; padding: 8px 12px;
