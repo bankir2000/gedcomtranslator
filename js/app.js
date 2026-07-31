@@ -7,6 +7,7 @@ import {
 } from './ui/dictUI.js';
 import { testPatronymic, generatePatrDict } from './ui/patrUI.js';
 import { testWord, generateWordScan } from './ui/wordScanUI.js';
+import { renderPlaceHierarchy } from './ui/placeHierarchyUI.js';
 import { renderReview } from './ui/reviewUI.js';
 import { addAllUntransToDict } from './ui/untransUI.js';
 import { initFileUI, clearFile } from './ui/fileUI.js';
@@ -65,7 +66,10 @@ for (const cat of ['name', 'surn', 'place']) {
 }
 document.getElementById('btn-name-scan').addEventListener('click', () => generateWordScan('name'));
 document.getElementById('btn-surn-scan').addEventListener('click', () => generateWordScan('surn'));
-document.getElementById('btn-place-scan').addEventListener('click', () => generateWordScan('place'));
+document.getElementById('btn-place-scan').addEventListener('click', () => {
+  generateWordScan('place');
+  renderPlaceHierarchy();
+});
 
 // ---- Вкладка «Перегляд змін» ----
 ['flt-names', 'flt-surn', 'flt-places', 'flt-dates', 'flt-other', 'flt-auto-only'].forEach(id => {

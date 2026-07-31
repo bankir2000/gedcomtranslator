@@ -16,7 +16,7 @@
   <div class="badge">GED</div>
   <div style="flex:1;min-width:0;">
     <h1 style="margin:0;">GEDCOM Перекладач Pro</h1>
-    <div style="font-size:.7rem;color:var(--muted);line-height:1.3;">v47 · зібрано 31.07.2026 04:10 · Банкір</div>
+    <div style="font-size:.7rem;color:var(--muted);line-height:1.3;">v49 · зібрано 31.07.2026 22:32 · Банкір</div>
   </div>
   <span class="sub">рос → укр</span>
   <button class="theme-toggle" id="themeBtn">☀️ День</button>
@@ -409,6 +409,19 @@
       </div>
     </div>
   </div>
+
+  <div class="section">
+    <div class="section-head">🌳 Ієрархія місць (виведена з файлу)</div>
+    <div class="section-body">
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;">
+        Побудовано автоматично з реальних значень PLAC у файлі (за порядком компонентів через кому) —
+        не окремий словник, а спосіб побачити, для яких рівнів (губернія/повіт/село) переклад ще відсутній.
+      </div>
+      <div id="placeHierarchyTree" class="patr-demo" style="min-height:40px;color:var(--muted);font-size:.82rem;display:block;">
+        Завантаж файл і натисни «Скан файлу» вище.
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ===== TAB: REVIEW ===== -->
@@ -490,6 +503,13 @@
   <div id="analysisResults" style="display:none;flex-direction:column;gap:16px;">
 
     <div class="section">
+      <div class="section-head">🩺 Загальна оцінка якості файлу</div>
+      <div class="section-body">
+        <div id="healthScoreBox" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;"></div>
+      </div>
+    </div>
+
+    <div class="section">
       <div class="section-head">📈 Статистика</div>
       <div class="section-body">
         <div class="stats" id="statsGrid" style="display:grid;"></div>
@@ -499,14 +519,6 @@
     <div class="section">
       <div class="section-head">🩺 Перевірка структури <span id="issues-count" style="color:var(--muted);font-size:.8rem;font-weight:400;"></span></div>
       <div class="section-body" id="issuesList" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
-    </div>
-
-    <div class="section">
-      <div class="section-head">
-        ✍️ Орфографічні помилки <span id="spelling-count" style="color:var(--muted);font-size:.8rem;font-weight:400;"></span>
-      </div>
-      <div style="padding:0 18px;margin-top:-8px;font-size:.75rem;color:var(--muted);">Завжди за оригіналом файлу (рос.) — довідник + прості правила (латиниця серед кирилиці, цифри, потрійні літери тощо).</div>
-      <div class="section-body" id="spellingList" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
     </div>
 
     <div class="section">

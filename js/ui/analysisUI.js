@@ -5,7 +5,6 @@ import { downloadText } from '../core/download.js';
 import { buildDuplicatesReportHtml } from '../engine/duplicatesReportHtml.js';
 import { groupKey, loadDismissed, saveDismissed } from '../core/dismissedDuplicates.js';
 import { loadConfirmed, saveConfirmed } from '../core/confirmedDuplicates.js';
-import { buildSpellingReport } from '../engine/spellCheck.js';
 import { buildMissingPatronymicReport } from '../engine/familysearchReport.js';
 
 function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -58,15 +57,9 @@ export function runAnalysis() {
   // Даємо браузеру перемалювати кнопку перед важким синхронним проходом по файлу
   setTimeout(() => {
     state.analysis = runFullAnalysis(source);
-    // Ці два звіти — ЗАВЖДИ з оригіналу (рос.), незалежно від того, який файл
+    // Цей звіт — ЗАВЖДИ з оригіналу (рос.), незалежно від того, який файл
     // аналізує решта вкладки: цікаві саме помилки в первинних даних.
-    if (state.rawContent) {
-      state.analysis.spelling = buildSpellingReport(state.rawContent, state.dict, state.patrDict);
-      state.analysis.missingPatronymic = buildMissingPatronymicReport(state.rawContent);
-    } else {
-      state.analysis.spelling = [];
-      state.analysis.missingPatronymic = [];
-    }
+    state.analysis.missingPatronymic = state.rawContent ? buildMissingPatronymicReport(state.rawContent) : [];
     btn.disabled = false;
     btn.textContent = '🔄 Аналізувати ще раз';
     render();
@@ -86,9 +79,9 @@ function render() {
   document.getElementById('analysis-source-label').textContent =
     state.analysisSource === 'translated' ? '📗 перекладеного файлу' : '📄 оригіналу (ще не перекладено)';
 
+  renderHealthScore(a.health);
   renderStats(a.stats);
   renderIssues(a.issues);
-  renderSpelling(a.spelling || []);
   renderMissingPatronymic(a.missingPatronymic || []);
   renderDuplicates(a.duplicates);
   renderTreeBreaks(a.treeBreaks);
@@ -97,6 +90,24 @@ function render() {
   const errCount = a.issues.filter(i => i.level === 'error').length;
   const badge = document.getElementById('badge-analysis');
   if (errCount) { badge.style.display = 'inline'; badge.textContent = errCount; } else badge.style.display = 'none';
+}
+
+// Композитна оцінка (0-100): 35% повнота (дата народження + _FSFTID),
+// 25% зв'язність (частка осіб, не ізольованих від дерева), 40% узгодженість
+// (структурні помилки/попередження зі "Перевірки структури" — саме тому вона
+// важить найбільше: биті посилання шкідливіші за прогалини в датах).
+function renderHealthScore(h) {
+  const el = document.getElementById('healthScoreBox');
+  const color = h.score >= 90 ? 'var(--green)' : h.score >= 75 ? 'var(--accent)' : h.score >= 55 ? 'var(--orange)' : 'var(--red)';
+  el.innerHTML = `
+    <div style="font-size:2.4rem;font-weight:800;color:${color};line-height:1;">${h.score}</div>
+    <div style="flex:1;min-width:180px;">
+      <div style="font-weight:700;color:${color};">${esc(h.label)}</div>
+      <div style="font-size:.78rem;color:var(--muted);margin-top:4px;">
+        Повнота: ${h.completeness}% · Зв'язність: ${h.connectivity}% · Узгодженість: ${h.consistency}%
+      </div>
+    </div>
+  `;
 }
 
 function renderStats(s) {
@@ -127,22 +138,6 @@ function renderIssues(issues) {
 
 // Звіт про ймовірні орфографічні помилки — ЗАВЖДИ рахується з оригіналу
 // (рос.), незалежно від того, який файл аналізує решта вкладки.
-function renderSpelling(items) {
-  const el = document.getElementById('spellingList');
-  const countEl = document.getElementById('spelling-count');
-  if (!el) return;
-  countEl.textContent = items.length ? `${items.length} слів під питанням` : 'проблем не знайдено';
-  if (!items.length) {
-    el.innerHTML = '<div class="empty-hint">Явних орфографічних помилок не знайдено. 👍</div>';
-    return;
-  }
-  el.innerHTML = items.slice(0, 300).map(it => `
-    <div class="issue-row issue-warning">
-      <span class="issue-badge">✍️</span>
-      <span class="issue-msg"><b>${esc(it.word)}</b> <span style="color:var(--muted);">(${esc(it.category)}, ${it.count}×)</span> — ${esc(it.issues.join('; '))}</span>
-    </div>`).join('') + (items.length > 300 ? `<div class="empty-hint">…і ще ${items.length - 300}.</div>` : '');
-}
-
 // Звіт «є ім'я і прізвище, а по-батькові нема» — теж ЗАВЖДИ з оригіналу.
 function renderMissingPatronymic(rows) {
   const el = document.getElementById('missingPatrList');

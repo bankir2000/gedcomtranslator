@@ -123,7 +123,35 @@ export function computeStats(individuals, families) {
   };
 }
 
-// ---------- ПЕРЕВІРКА СТРУКТУРИ ----------
+// ---------- ЄДИНА ОЦІНКА ЯКОСТІ ФАЙЛУ ("Tree Health Score") ----------
+// Ідея — не наша: подібний композитний бал є в кількох незалежних онлайн-
+// валідаторах GEDCOM (напр. GEDminer: повнота/джерела/узгодженість). Ми не
+// відстежуємо джерела (SOUR/цитати) взагалі, тож рахуємо з того, що реально
+// вимірюємо в цьому застосунку: повнота дат і _FSFTID, зв'язність дерева
+// (яка частка осіб узагалі приєднана до когось) і узгодженість (структурні
+// помилки/попередження з validateStructure).
+export function computeHealthScore(stats, issues) {
+  const total = stats.totalIndividuals || 0;
+  if (!total) return { score: 0, label: 'Немає даних', completeness: 0, connectivity: 0, consistency: 0 };
+
+  const completeness = (stats.withBirth / total + stats.withFsftid / total) / 2;
+  const connectivity = 1 - (stats.isolated / total);
+  const errorCount = issues.filter(i => i.level === 'error').length;
+  const warnCount = issues.filter(i => i.level === 'warning').length;
+  const consistency = Math.max(0, 1 - (errorCount * 2 + warnCount) / total);
+
+  const score = Math.round(100 * (0.35 * completeness + 0.25 * connectivity + 0.40 * consistency));
+  const label = score >= 90 ? 'Відмінно' : score >= 75 ? 'Добре' : score >= 55 ? 'Задовільно' : 'Потребує уваги';
+
+  return {
+    score, label,
+    completeness: Math.round(completeness * 100),
+    connectivity: Math.round(connectivity * 100),
+    consistency: Math.round(consistency * 100),
+  };
+}
+
+
 export function validateStructure(individuals, families, duplicateIds = []) {
   const issues = [];
   const add = (level, message, ref) => issues.push({ level, message, ref });
@@ -179,6 +207,13 @@ export function validateStructure(individuals, families, duplicateIds = []) {
   for (const f of families.values()) {
     if (f.husb && !individuals.has(f.husb)) add('error', `HUSB посилається на неіснуючу особу @${f.husb}@`, `@${f.id}@`);
     if (f.wife && !individuals.has(f.wife)) add('error', `WIFE посилається на неіснуючу особу @${f.wife}@`, `@${f.id}@`);
+    // Стать не переплутана: у HUSB очікується чоловіча, у WIFE — жіноча
+    // (той самий принцип, що й у "Check and Repair" в Gramps). Якщо стать
+    // невідома (SEX відсутній) — мовчимо, тут судити нема з чого.
+    const husbP = f.husb && individuals.get(f.husb);
+    const wifeP = f.wife && individuals.get(f.wife);
+    if (husbP && husbP.sex === 'F') add('warning', `У ролі HUSB записана особа жіночої статі`, indiRef(husbP));
+    if (wifeP && wifeP.sex === 'M') add('warning', `У ролі WIFE записана особа чоловічої статі`, indiRef(wifeP));
     for (const cid of f.chil) {
       if (!individuals.has(cid)) add('error', `CHIL посилається на неіснуючу особу @${cid}@`, `@${f.id}@`);
     }
@@ -403,9 +438,12 @@ export function analyzeFrequencies(individuals, families) {
 
 export function runFullAnalysis(rawContent) {
   const { individuals, families, duplicateIds } = buildIndex(rawContent);
+  const stats = computeStats(individuals, families);
+  const issues = validateStructure(individuals, families, duplicateIds);
   return {
-    stats: computeStats(individuals, families),
-    issues: validateStructure(individuals, families, duplicateIds),
+    stats,
+    issues,
+    health: computeHealthScore(stats, issues),
     duplicates: findDuplicates(individuals),
     freq: analyzeFrequencies(individuals, families),
     treeBreaks: findTreeBreaks(individuals, families),
