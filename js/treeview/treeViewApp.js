@@ -9,6 +9,8 @@
 import * as f3 from 'https://cdn.jsdelivr.net/npm/family-chart@0.9.0/+esm';
 import { renderFanChart } from './fanChart.js?v=7';
 import { openPageOrNavigate, closeOrNavigateBack } from '../ui/navUtil.js';
+import { describeKinship } from '../engine/kinship.js';
+import { showCardMenu } from './cardMenu.js';
 
 const FS_BASE = 'https://www.familysearch.org/tree/person/details/';
 const STORAGE_KEY = 'gedcom_tree_graph_v1';
@@ -188,6 +190,38 @@ function renderCurrentMode(data) {
   }
 }
 
+// Перебудовує (перецентровує) дерево на вказаній особі — та сама дія, що й
+// вибір результату пошуку; спільна і для пункту меню картки, і для пошуку.
+function rebuildTreeOn(id) {
+  const node = nodesById.get(id);
+  if (!node) return;
+  currentRootId = id;
+  const d = node.data || {};
+  const years = [d.birthYear, d.deathYear].filter(Boolean).join('–');
+  document.getElementById('rootPersonLabel').textContent = years ? `${d['first name'] || ''} (${years})` : (d['first name'] || '');
+  if (mode === 'tree' && f3ChartInstance) {
+    f3ChartInstance.updateMainId(id);
+    f3ChartInstance.updateTree({ tree_position: 'main_to_middle' });
+  } else if (mode === 'fan') {
+    renderFanMode();
+  }
+}
+
+// Спливне меню дій по картці — однакове для обох режимів перегляду.
+function openCardMenu(event, personId, person) {
+  showCardMenu(event.clientX, event.clientY, [
+    {
+      label: '🔗 Перейти в FamilySearch',
+      onClick: () => {
+        if (person.fsftid) openPageOrNavigate(FS_BASE + encodeURIComponent(person.fsftid));
+        else showToast('У цієї особи немає _FSFTID у файлі — перехід на FamilySearch неможливий.');
+      },
+    },
+    { label: '🌳 Побудувати дерево по цій особі', onClick: () => rebuildTreeOn(personId) },
+    { label: '✏️ Відкрити редактор людей', onClick: () => openPageOrNavigate('people-editor.html') },
+  ]);
+}
+
 // ---- Режим "Дерево" (family-chart) ----
 function renderTreeMode(data) {
   container.innerHTML = '';
@@ -208,7 +242,7 @@ function renderTreeMode(data) {
     .setAncestryDepth(INITIAL_ANCESTRY_DEPTH)
     .setProgenyDepth(INITIAL_PROGENY_DEPTH)
     .setCardXSpacing(270)
-    .setCardYSpacing(260);
+    .setCardYSpacing(280);
   f3ChartInstance = f3Chart;
 
   // Замість вбудованого шаблону картки (він виявився ненадійним — рамка
@@ -216,7 +250,7 @@ function renderTreeMode(data) {
   // рік народження (★) і смерті (✝) — кожен на своєму рядку, рамка й фон —
   // звичайний CSS, який ми повністю контролюємо.
   const f3Card = f3Chart.setCardHtml()
-    .setCardDim({ width: 210, height: 155 });
+    .setCardDim({ width: 210, height: 172 });
 
   f3Card.setCardInnerHtmlCreator((d) => {
     const person = extractPersonData(d) || {};
@@ -226,6 +260,15 @@ function renderTreeMode(data) {
     if (person.birthYear) lines.push(`★ ${esc(String(person.birthYear))}`);
     if (person.deathYear) lines.push(`✝ ${esc(String(person.deathYear))}`);
     if (person.marriageYear) lines.push(`💍 ${esc(String(person.marriageYear))}`);
+
+    // Спорідненість відносно ОСОБИ, по якій зараз побудовано дерево
+    // (currentRootId — читаємо "наживо", а не captured-копію: після пошуку
+    // й перецентрування дерева на іншу особу підписи самі оновляться разом
+    // із перемальовкою карток).
+    const kinship = (!isMain && d.data.id !== currentRootId)
+      ? describeKinship(nodeIndex, currentRootId, d.data.id, person.gender)
+      : '';
+    const kinshipHtml = kinship ? `<div class="tv-card-kinship">${esc(kinship)}</div>` : '';
 
     // ---- Кнопки "➕ додати родича" — лише якщо в цієї особи є власний
     // _FSFTID (інакше нема на що спертись зовнішнім посиланням у редакторі
@@ -250,6 +293,7 @@ function renderTreeMode(data) {
     return `
       <div class="tv-card ${genderClass}${isMain ? ' tv-card-main' : ''}">
         <div class="tv-card-name">${esc(person['first name'] || '(без імені)')}</div>
+        ${kinshipHtml}
         ${lines.map(l => `<div class="tv-card-line">${l}</div>`).join('')}
         ${addButtons}
       </div>
@@ -267,12 +311,7 @@ function renderTreeMode(data) {
       return;
     }
     const person = extractPersonData(d);
-    const fsftid = person && person.fsftid;
-    if (fsftid) {
-      openPageOrNavigate(FS_BASE + encodeURIComponent(fsftid));
-    } else {
-      showToast('У цієї особи немає _FSFTID у файлі — перехід на FamilySearch неможливий.');
-    }
+    openCardMenu(e, d.data.id, person || {});
   });
 
   f3Chart.updateTree({ initial: true, tree_position: 'fit' });
@@ -304,23 +343,9 @@ function openAddRelative(rel, person) {
 // такого типу діаграми не підтримує ні в безкоштовній, ні в платній версії) ----
 function renderFanMode() {
   f3ChartInstance = null;
-  renderFanChart(container, nodesById, currentRootId, fanGenerations, {
-    onTap: (node) => {
-      if (!node) return;
-      currentRootId = node.id;
-      const d = node.data || {};
-      const years = [d.birthYear, d.deathYear].filter(Boolean).join('–');
-      document.getElementById('rootPersonLabel').textContent = years ? `${d['first name'] || ''} (${years})` : (d['first name'] || '');
-      renderFanMode();
-    },
-    onLongPress: (node) => {
-      const fsftid = node?.data?.fsftid;
-      if (fsftid) {
-        openPageOrNavigate(FS_BASE + encodeURIComponent(fsftid));
-      } else {
-        showToast('У цієї особи немає _FSFTID у файлі — перехід на FamilySearch неможливий.');
-      }
-    },
+  renderFanChart(container, nodesById, currentRootId, fanGenerations, (node, event) => {
+    if (!node) return;
+    openCardMenu(event, node.id, node.data || {});
   });
 }
 
@@ -423,17 +448,9 @@ function initSearch(data) {
     resultsEl.querySelectorAll('.tree-search-item').forEach(elx => {
       elx.addEventListener('click', () => {
         const id = elx.dataset.id;
-        currentRootId = id;
-        const node = nodesById.get(id);
-        if (node) document.getElementById('rootPersonLabel').textContent = node.data['first name'];
         resultsEl.innerHTML = '';
         input.value = '';
-        if (mode === 'tree' && f3ChartInstance) {
-          f3ChartInstance.updateMainId(id);
-          f3ChartInstance.updateTree({ tree_position: 'main_to_middle' });
-        } else if (mode === 'fan') {
-          renderFanMode();
-        }
+        rebuildTreeOn(id);
       });
     });
   });

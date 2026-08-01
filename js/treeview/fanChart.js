@@ -110,31 +110,19 @@ function wrapText(label, arcLenPx, fontSizePx, maxLines = 2) {
   return kept;
 }
 
-function attachTapHold(selection, getNode, { onTap, onLongPress }) {
-  let timer = null;
-  let firedLongPress = false;
+function attachClickHandler(selection, getNode, onTap) {
   let startX = 0, startY = 0;
 
   selection
     .style('cursor', 'pointer')
     .on('pointerdown', function (event) {
-      firedLongPress = false;
       startX = event.clientX; startY = event.clientY;
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        firedLongPress = true;
-        onLongPress(getNode(this, event));
-      }, 550);
     })
     .on('pointerup', function (event) {
-      clearTimeout(timer);
-      if (firedLongPress) return;
       const dx = Math.abs(event.clientX - startX);
       const dy = Math.abs(event.clientY - startY);
-      if (dx < 8 && dy < 8) onTap(getNode(this, event));
-    })
-    .on('pointerleave', () => clearTimeout(timer))
-    .on('pointercancel', () => clearTimeout(timer));
+      if (dx < 8 && dy < 8) onTap(getNode(this, event), event);
+    });
 }
 
 /**
@@ -143,9 +131,9 @@ function attachTapHold(selection, getNode, { onTap, onLongPress }) {
  * @param nodesById     Map(id -> вузол family-chart формату)
  * @param rootId         з кого починати (центр)
  * @param generations    скільки поколінь в кожен бік (той самий повзунок)
- * @param callbacks      { onTap(node), onLongPress(node) }
+ * @param onTap          (node, pointerEvent) — виклик при кліку/тапі на сектор чи корінь
  */
-export function renderFanChart(container, nodesById, rootId, generations, callbacks) {
+export function renderFanChart(container, nodesById, rootId, generations, onTap) {
   container.innerHTML = '';
   const width = container.clientWidth || 800;
   const height = container.clientHeight || 600;
@@ -227,7 +215,7 @@ export function renderFanChart(container, nodesById, rootId, generations, callba
         if (i >= nameLines.length) tspan.style('opacity', '.72');
       });
     }
-    attachTapHold(wedgeGroup, () => node, callbacks);
+    attachClickHandler(wedgeGroup, () => node, onTap);
   }
 
   // ---- корінь ----
@@ -250,7 +238,7 @@ export function renderFanChart(container, nodesById, rootId, generations, callba
       .text(line);
     if (i >= rootNameLines.length) tspan.style('opacity', '.72');
   });
-  if (rootNode) attachTapHold(rootGroup, () => rootNode, callbacks);
+  if (rootNode) attachClickHandler(rootGroup, () => rootNode, onTap);
 
   // ---- предки (верх) ----
   buildAncestorWedges(nodesById, rootId, generations).forEach(drawWedge);
