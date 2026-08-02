@@ -10,6 +10,13 @@
 //     не дає потрапити у фінальний файл, він там не потрібен.
 //  4. Реальній особі в основному файлі додає бракуючий рядок FAMS/FAMC —
 //     інакше вона сама "не знатиме" про нову сім'ю.
+//  5. ЯКЩО базова сім'я частково збігається з УЖЕ ІСНУЮЧОЮ сім'єю в
+//     основному файлі (напр. батько й дитина вже є разом в одній сім'ї, але
+//     без матері) — НЕ створює паралельну другу сім'ю для тих самих людей, а
+//     дописує відсутнє поле (WIFE/HUSB/дату шлюбу/нову дитину) в наявну.
+//     Без цього дитина лишалась дитиною ОДРАЗУ в двох FAM-записах, а дерево
+//     (яке для швидкості дивиться лише на перший FAMC) продовжувало
+//     показувати стару сім'ю без щойно доданого з бази чоловіка/дружини.
 import { buildIndex } from './analysis.js';
 import { getRecordBlock, replaceRecordBlock } from './gedcomRecord.js';
 
@@ -20,6 +27,37 @@ function maxNumericSuffix(ids) {
     if (m) max = Math.max(max, +m[1]);
   }
   return max;
+}
+
+/**
+ * Шукає серед сімей ОСНОВНОГО файлу ту, куди безпечно долучити нові дані
+ * замість створення дубльованої сім'ї. "Безпечно" означає: принаймні один
+ * бік подружжя вже ТОЧНО збігається (не просто порожнє поле) — самого лише
+ * спільного батька з іншою, вже вказаною дружиною недостатньо, якщо немає
+ * спільної дитини, що це підтверджує (батько міг мати кілька шлюбів).
+ */
+function findExistingFamilyToReuse(mainFamilies, husbReal, wifeReal, chilReal) {
+  if (!husbReal && !wifeReal) return null;
+  let best = null, bestScore = -1;
+  for (const fam of mainFamilies.values()) {
+    if (husbReal && fam.husb && fam.husb !== husbReal) continue;
+    if (wifeReal && fam.wife && fam.wife !== wifeReal) continue;
+
+    const husbMatch = !!(husbReal && fam.husb === husbReal);
+    const wifeMatch = !!(wifeReal && fam.wife === wifeReal);
+    if (!husbMatch && !wifeMatch) continue; // жодного підтвердженого збігу — це не та сама сім'я
+
+    const sharedChildren = fam.chil.filter(c => chilReal.includes(c));
+    // Кандидат уже має когось на "нашому порожньому" місці (ми не вказали
+    // чоловіка/дружину, а в кандидата він/вона є) — об'єднуємо лише якщо
+    // це підтверджено спільною дитиною, інакше це ризикує бути ІНШИЙ шлюб.
+    const otherSideFilled = (husbMatch && fam.wife && !wifeReal) || (wifeMatch && fam.husb && !husbReal);
+    if (otherSideFilled && sharedChildren.length === 0) continue;
+
+    const score = (husbMatch ? 2 : 0) + (wifeMatch ? 2 : 0) + sharedChildren.length;
+    if (score > bestScore) { bestScore = score; best = fam; }
+  }
+  return best;
 }
 
 /**
@@ -43,7 +81,7 @@ export function mergeBaseIntoMain(mainContent, baseContent) {
   const nextIndiNum = maxNumericSuffix(main.individuals.keys()) + 1;
   const nextFamNum = maxNumericSuffix(main.families.keys()) + 1;
 
-  const idMap = new Map();       // base-id (не якір) -> новий унікальний id
+  const idMap = new Map();       // base-id (не якір) -> новий унікальний id (або id ІСНУЮЧОЇ сім'ї, якщо долучили до неї)
   const anchorRealId = new Map(); // base-id якоря -> реальний id в main (або null, якщо не знайдено)
   const unmatchedAnchors = [];
 
@@ -66,7 +104,8 @@ export function mergeBaseIntoMain(mainContent, baseContent) {
     return idMap.get(baseId) || null;
   }
 
-  // Рядки, які треба ДОДАТИ до існуючих записів основного файлу (нові FAMS/FAMC)
+  // Рядки, які треба ДОДАТИ до існуючих записів основного файлу (нові FAMS/FAMC,
+  // а тепер і долучення до вже наявної сім'ї — той самий механізм).
   const extraLinesForMain = new Map();
   function addExtra(mainId, line) {
     if (!mainId) return;
@@ -76,7 +115,6 @@ export function mergeBaseIntoMain(mainContent, baseContent) {
 
   const famLines = [];
   for (const f of base.families.values()) {
-    const newFamId = idMap.get(f.id);
     const husbReal = f.husb ? resolveId(f.husb) : null;
     const wifeReal = f.wife ? resolveId(f.wife) : null;
     const chilReal = [];
@@ -86,6 +124,30 @@ export function mergeBaseIntoMain(mainContent, baseContent) {
     }
     if (!husbReal && !wifeReal && !chilReal.length) continue; // порожня сім'я (якір не знайдено й дітей нема) — пропускаємо
 
+    const existingFam = findExistingFamilyToReuse(main.families, husbReal, wifeReal, chilReal);
+    if (existingFam) {
+      // Долучаємо до ІСНУЮЧОЇ сім'ї замість дублювання — той самий id бази
+      // тепер веде на неї (resolveId() для цієї f.id поверне саме її id,
+      // тож FAMS/FAMC у власних записах осіб нижче підставляться правильно).
+      idMap.set(f.id, existingFam.id);
+      if (!existingFam.husb && husbReal) { addExtra(existingFam.id, `1 HUSB @${husbReal}@`); addExtra(husbReal, `1 FAMS @${existingFam.id}@`); }
+      if (!existingFam.wife && wifeReal) { addExtra(existingFam.id, `1 WIFE @${wifeReal}@`); addExtra(wifeReal, `1 FAMS @${existingFam.id}@`); }
+      for (const c of chilReal) {
+        if (!existingFam.chil.includes(c)) {
+          addExtra(existingFam.id, `1 CHIL @${c}@`);
+          addExtra(c, `1 FAMC @${existingFam.id}@`);
+        }
+      }
+      if (!existingFam.marr?.date && !existingFam.marr?.plac && (f.marr?.date || f.marr?.plac)) {
+        const marrLines = ['1 MARR'];
+        if (f.marr.date) marrLines.push(`2 DATE ${f.marr.date}`);
+        if (f.marr.plac) marrLines.push(`2 PLAC ${f.marr.plac}`);
+        addExtra(existingFam.id, marrLines.join('\n'));
+      }
+      continue; // нову сім'ю не створюємо
+    }
+
+    const newFamId = idMap.get(f.id);
     if (f.husb && anchorRealId.has(f.husb) && husbReal) addExtra(husbReal, `1 FAMS @${newFamId}@`);
     if (f.wife && anchorRealId.has(f.wife) && wifeReal) addExtra(wifeReal, `1 FAMS @${newFamId}@`);
     for (const c of f.chil) {
@@ -97,8 +159,11 @@ export function mergeBaseIntoMain(mainContent, baseContent) {
     if (husbReal) lines.push(`1 HUSB @${husbReal}@`);
     if (wifeReal) lines.push(`1 WIFE @${wifeReal}@`);
     for (const c of chilReal) lines.push(`1 CHIL @${c}@`);
-    if (f.marr?.date) lines.push('1 MARR', `2 DATE ${f.marr.date}`);
-    if (f.marr?.plac) lines.push(`2 PLAC ${f.marr.plac}`);
+    if (f.marr?.date || f.marr?.plac) {
+      lines.push('1 MARR');
+      if (f.marr.date) lines.push(`2 DATE ${f.marr.date}`);
+      if (f.marr.plac) lines.push(`2 PLAC ${f.marr.plac}`);
+    }
     famLines.push(...lines);
   }
 
@@ -132,7 +197,8 @@ export function mergeBaseIntoMain(mainContent, baseContent) {
     }
   }
 
-  // Вставляємо додаткові FAMS/FAMC-рядки в записи реальних осіб основного файлу.
+  // Вставляємо додаткові FAMS/FAMC-рядки (і долучення до наявних сімей) в
+  // записи реальних осіб та сімей основного файлу.
   let mergedMain = mainContent;
   for (const [mainId, extraLines] of extraLinesForMain) {
     const block = getRecordBlock(mergedMain, mainId);
