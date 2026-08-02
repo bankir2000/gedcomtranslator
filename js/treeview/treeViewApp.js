@@ -215,6 +215,11 @@ function openRecordEditorFor(personId) {
     try {
       window.opener.postMessage({ type: 'gedcom-open-record-editor', id: personId }, window.location.origin);
       window.opener.focus();
+      // window.opener.focus() на багатьох мобільних браузерах НЕ перемикає
+      // видиму вкладку (обмеження безпеки) — тож без явного підтвердження
+      // тут людина лишається дивитись на дерево й думає, що нічого не
+      // сталося, хоча в іншій вкладці редактор уже відкрився.
+      showToast('✅ Відкрито в головній вкладці на «Пошук» — перейди туди вручну, якщо вона сама не показалась.');
       return;
     } catch { /* не вдалось достукатись до opener — падаємо на запасний варіант нижче */ }
   }
