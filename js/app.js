@@ -15,7 +15,7 @@ import { runTranslation, downloadResult } from './ui/runTranslation.js';
 import { renderBackups, exportAllBackup, importAllBackup, doImportAll, clearSiteData, renderBackupStatus } from './ui/backupUI.js';
 import { initWizard, goToStep } from './ui/wizard.js';
 import { runAnalysis, downloadAnalysisReport, shareDuplicatesReport, shareConfirmedDuplicatesReport } from './ui/analysisUI.js';
-import { runSearch, saveEditor, closeEditor, openEditorById } from './ui/searchUI.js';
+import { runSearch, saveEditor, closeEditor, openEditorById, linkRelation } from './ui/searchUI.js';
 import { initCompareTab, runCompare, downloadCompareReport } from './ui/compareUI.js';
 import { generateFsReport, downloadFsReport, runFsrFilter } from './ui/familysearchReportUI.js';
 import { searchTreePeople, openTreeWindow, refreshTreeSelection } from './ui/treeUI.js';
@@ -92,6 +92,10 @@ document.getElementById('searchQuery').addEventListener('input', runSearch);
 document.querySelectorAll('input[name="searchMode"]').forEach(el => el.addEventListener('change', runSearch));
 document.getElementById('btn-record-save').addEventListener('click', saveEditor);
 document.getElementById('btn-record-cancel').addEventListener('click', closeEditor);
+document.getElementById('btn-add-father').addEventListener('click', () => linkRelation('father'));
+document.getElementById('btn-add-mother').addEventListener('click', () => linkRelation('mother'));
+document.getElementById('btn-add-spouse').addEventListener('click', () => linkRelation('spouse'));
+document.getElementById('btn-add-child').addEventListener('click', () => linkRelation('child'));
 
 // ---- Повний бекап (усі словники одним файлом) ----
 document.getElementById('btn-export-all').addEventListener('click', exportAllBackup);

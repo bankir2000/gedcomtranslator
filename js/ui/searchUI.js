@@ -2,6 +2,7 @@
 import { state } from '../state.js';
 import { buildIndex } from '../engine/analysis.js';
 import { getRecordBlock, replaceRecordBlock, splitLines, patchIndiFields } from '../engine/gedcomRecord.js';
+import { linkExistingRelation } from '../engine/linkRelation.js';
 
 let editingType = null; // 'INDI' | 'raw' — визначає, яку форму (структуровану чи сирий текст) показати/зберегти
 
@@ -173,6 +174,15 @@ function openEditor(id) {
     document.getElementById('reDeathDate').value = p.deat.date || '';
     document.getElementById('reDeathPlace').value = p.deat.plac || '';
     document.getElementById('reRelationsView').innerHTML = relationsSummaryHtml(p, idx);
+
+    const famcId = p.famc[0];
+    const famc = famcId ? idx.families.get(famcId) : null;
+    document.getElementById('reAddFatherRow').style.display = (famc && famc.husb) ? 'none' : 'flex';
+    document.getElementById('reAddMotherRow').style.display = (famc && famc.wife) ? 'none' : 'flex';
+    ['reAddFatherFsftid', 'reAddMotherFsftid', 'reAddSpouseFsftid', 'reAddSpouseMarrDate', 'reAddChildFsftid'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('reLinkError').style.display = 'none';
   } else {
     document.getElementById('recordEditorArea').value = block.lines.join('\n');
   }
@@ -184,6 +194,39 @@ export function closeEditor() {
   editingId = null;
   editingType = null;
   document.getElementById('recordEditor').style.display = 'none';
+}
+
+// Обробляє клік по будь-якій із чотирьох кнопок "➕ додати..." у блоці
+// родинних зв'язків — шукає вказану особу за _FSFTID у ЦЬОМУ Ж файлі й
+// зв'язує напряму, без окремого запису-чернетки (та сама безпечна логіка
+// консолідації сімей, що й при об'єднанні бази).
+export function linkRelation(relation) {
+  if (!editingId || editingType !== 'INDI') return;
+  const errEl = document.getElementById('reLinkError');
+  errEl.style.display = 'none';
+
+  const fieldMap = {
+    father: 'reAddFatherFsftid', mother: 'reAddMotherFsftid',
+    spouse: 'reAddSpouseFsftid', child: 'reAddChildFsftid',
+  };
+  const fsftid = document.getElementById(fieldMap[relation]).value.trim();
+  if (!fsftid) { errEl.textContent = 'Вкажи код _FSFTID.'; errEl.style.display = 'block'; return; }
+  const marrDate = relation === 'spouse' ? document.getElementById('reAddSpouseMarrDate').value.trim() : '';
+
+  const content = activeContent();
+  const { content: newContent, error } = linkExistingRelation(content, editingId, relation, fsftid, marrDate);
+  if (error) { errEl.textContent = error; errEl.style.display = 'block'; return; }
+
+  if (state.translatedContent) state.translatedContent = newContent;
+  else state.rawContent = newContent;
+  cachedSource = null;
+
+  const savedId = editingId;
+  openEditor(savedId); // перевідкриваємо той самий запис — зв'язки й поля оновляться
+  const note = document.getElementById('searchSaveNote');
+  note.style.display = 'block';
+  note.textContent = '✅ Зв’язок додано.';
+  setTimeout(() => { note.style.display = 'none'; }, 3000);
 }
 
 export function saveEditor() {

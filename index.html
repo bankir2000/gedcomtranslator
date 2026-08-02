@@ -16,7 +16,7 @@
   <div class="badge">GED</div>
   <div style="flex:1;min-width:0;">
     <h1 style="margin:0;">GEDCOM Перекладач Pro</h1>
-    <div style="font-size:.7rem;color:var(--muted);line-height:1.3;">v57 · зібрано 02.08.2026 13:55 · Банкір</div>
+    <div style="font-size:.7rem;color:var(--muted);line-height:1.3;">v58 · зібрано 02.08.2026 18:43 · Банкір</div>
   </div>
   <span class="sub">рос → укр</span>
   <button class="theme-toggle" id="themeBtn">☀️ День</button>
@@ -640,8 +640,27 @@
           <label></label>
         </div>
         <div class="pe-rel-block">
-          <div class="pe-rel-title">Родинні зв'язки (лише перегляд — для змін використовуй «➕» на дереві)</div>
+          <div class="pe-rel-title">Родинні зв'язки</div>
           <div id="reRelationsView" style="font-size:.82rem;line-height:1.7;"></div>
+
+          <div id="reAddFatherRow" class="pe-rel-row" style="display:none;">
+            <input type="text" id="reAddFatherFsftid" placeholder="FSFTID батька">
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-add-father">➕ Додати батька</button>
+          </div>
+          <div id="reAddMotherRow" class="pe-rel-row" style="display:none;">
+            <input type="text" id="reAddMotherFsftid" placeholder="FSFTID матері">
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-add-mother">➕ Додати матір</button>
+          </div>
+          <div class="pe-rel-row">
+            <input type="text" id="reAddSpouseFsftid" placeholder="FSFTID чоловіка/дружини">
+            <input type="text" id="reAddSpouseMarrDate" placeholder="дата шлюбу (необов'язково)">
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-add-spouse">➕ Додати шлюб</button>
+          </div>
+          <div class="pe-rel-row">
+            <input type="text" id="reAddChildFsftid" placeholder="FSFTID дитини">
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-add-child">➕ Додати дитину</button>
+          </div>
+          <div id="reLinkError" style="display:none;color:var(--red);font-size:.78rem;margin-top:4px;"></div>
         </div>
       </div>
 

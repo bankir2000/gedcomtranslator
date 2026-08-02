@@ -20,7 +20,7 @@
 import { buildIndex } from './analysis.js';
 import { getRecordBlock, replaceRecordBlock } from './gedcomRecord.js';
 
-function maxNumericSuffix(ids) {
+export function maxNumericSuffix(ids) {
   let max = 0;
   for (const id of ids) {
     const m = String(id).match(/(\d+)/);
@@ -36,7 +36,7 @@ function maxNumericSuffix(ids) {
  * спільного батька з іншою, вже вказаною дружиною недостатньо, якщо немає
  * спільної дитини, що це підтверджує (батько міг мати кілька шлюбів).
  */
-function findExistingFamilyToReuse(mainFamilies, husbReal, wifeReal, chilReal) {
+export function findExistingFamilyToReuse(mainFamilies, husbReal, wifeReal, chilReal) {
   if (!husbReal && !wifeReal) return null;
   let best = null, bestScore = -1;
   for (const fam of mainFamilies.values()) {
@@ -45,9 +45,15 @@ function findExistingFamilyToReuse(mainFamilies, husbReal, wifeReal, chilReal) {
 
     const husbMatch = !!(husbReal && fam.husb === husbReal);
     const wifeMatch = !!(wifeReal && fam.wife === wifeReal);
-    if (!husbMatch && !wifeMatch) continue; // жодного підтвердженого збігу — це не та сама сім'я
-
     const sharedChildren = fam.chil.filter(c => chilReal.includes(c));
+
+    // Потрібен АБО підтверджений збіг чоловіка/дружини, АБО спільна дитина —
+    // без жодного з цих доказів це просто випадковий порожній запис.
+    // (Саме спільна дитина — головний доказ, коли заповнюємо ПЕРШИЙ раз
+    // порожній бік подружжя: тоді ні husbMatch, ні wifeMatch ще не може
+    // бути true, бо цей чоловік/дружина ніде раніше не фігурував.)
+    if (!husbMatch && !wifeMatch && sharedChildren.length === 0) continue;
+
     // Кандидат уже має когось на "нашому порожньому" місці (ми не вказали
     // чоловіка/дружину, а в кандидата він/вона є) — об'єднуємо лише якщо
     // це підтверджено спільною дитиною, інакше це ризикує бути ІНШИЙ шлюб.
