@@ -1,7 +1,9 @@
 // ===================== ПОШУК ПО GEDCOM + РЕДАГУВАННЯ ЗАПИСУ (Етап 5) =====================
 import { state } from '../state.js';
 import { buildIndex } from '../engine/analysis.js';
-import { getRecordBlock, replaceRecordBlock, splitLines } from '../engine/gedcomRecord.js';
+import { getRecordBlock, replaceRecordBlock, splitLines, patchIndiFields } from '../engine/gedcomRecord.js';
+
+let editingType = null; // 'INDI' | 'raw' — визначає, яку форму (структуровану чи сирий текст) показати/зберегти
 
 let cachedIndex = null;
 let cachedSource = null;
@@ -99,29 +101,124 @@ function renderRawResults(results, q) {
   el.querySelectorAll('.search-open-btn').forEach(btn => btn.addEventListener('click', () => openEditor(btn.dataset.id)));
 }
 
+export function openEditorById(id) {
+  openEditor(id);
+}
+
+function personLabel(p) {
+  const name = (p.name || '').replace(/\//g, '').trim() || '(без імені)';
+  const years = [p.birt.date, p.deat.date].filter(Boolean).join('–');
+  return years ? `${name} (${years})` : name;
+}
+
+// Тільки для показу — саму форму не робимо редагованою для зв'язків: зміна
+// батьків/дітей уже наявної особи зачіпає ЧУЖІ записи (сім'ї), а для цього
+// є безпечніший, вже перевірений шлях — кнопки "➕" на дереві.
+function relationsSummaryHtml(p, idx) {
+  const parts = [];
+  const famcId = p.famc[0];
+  if (famcId) {
+    const fam = idx.families.get(famcId);
+    if (fam) {
+      const father = fam.husb ? idx.individuals.get(fam.husb) : null;
+      const mother = fam.wife ? idx.individuals.get(fam.wife) : null;
+      if (father) parts.push(`батько: <b>${esc(personLabel(father))}</b>`);
+      if (mother) parts.push(`мати: <b>${esc(personLabel(mother))}</b>`);
+    }
+  }
+  for (const famsId of p.fams) {
+    const fam = idx.families.get(famsId);
+    if (!fam) continue;
+    const spouseId = fam.husb === p.id ? fam.wife : fam.husb;
+    if (spouseId) {
+      const sp = idx.individuals.get(spouseId);
+      if (sp) parts.push(`чоловік/дружина: <b>${esc(personLabel(sp))}</b>${fam.marr?.date ? ` (шлюб: ${esc(fam.marr.date)})` : ''}`);
+    }
+    for (const cid of fam.chil) {
+      const c = idx.individuals.get(cid);
+      if (c) parts.push(`дитина: <b>${esc(personLabel(c))}</b>`);
+    }
+  }
+  return parts.length ? parts.join('<br>') : '<span style="color:var(--muted);">Зв\'язків не знайдено.</span>';
+}
+
 function openEditor(id) {
   const block = getRecordBlock(activeContent(), id);
   if (!block) { alert('Запис не знайдено (можливо, файл змінився — повтори пошук).'); return; }
   editingId = id;
   document.getElementById('recordEditor').style.display = 'flex';
   document.getElementById('recordEditorTitle').textContent = `Редагування @${id}@`;
-  document.getElementById('recordEditorArea').value = block.lines.join('\n');
+
+  const typeMatch = block.lines[0].match(/^0 @[^@]+@ (\S+)/);
+  editingType = (typeMatch && typeMatch[1] === 'INDI') ? 'INDI' : 'raw';
+
+  document.getElementById('recordEditorForm').style.display = editingType === 'INDI' ? 'flex' : 'none';
+  document.getElementById('recordEditorRaw').style.display = editingType === 'INDI' ? 'none' : 'flex';
+
+  if (editingType === 'INDI') {
+    const idx = ensureIndex();
+    const p = idx && idx.individuals.get(id);
+    if (!p) { editingType = 'raw'; document.getElementById('recordEditorForm').style.display = 'none'; document.getElementById('recordEditorRaw').style.display = 'flex'; document.getElementById('recordEditorArea').value = block.lines.join('\n'); document.getElementById('recordEditor').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+    const givnRaw = p.givn || (p.name || '').replace(/\/[^/]*\//, '').trim();
+    const givnParts = givnRaw.split(/\s+/).filter(Boolean);
+    const surname = p.surn || (p.name.match(/\/([^/]*)\//) || [, ''])[1];
+
+    document.getElementById('reGiven').value = givnParts[0] || '';
+    document.getElementById('rePatronymic').value = givnParts.slice(1).join(' ');
+    document.getElementById('reSurname').value = surname;
+    document.getElementById('reSex').value = (p.sex === 'M' || p.sex === 'F') ? p.sex : '';
+    document.getElementById('reFsftid').value = p.fsftid || '';
+    document.getElementById('reBirthDate').value = p.birt.date || '';
+    document.getElementById('reBirthPlace').value = p.birt.plac || '';
+    document.getElementById('reDeathDate').value = p.deat.date || '';
+    document.getElementById('reDeathPlace').value = p.deat.plac || '';
+    document.getElementById('reRelationsView').innerHTML = relationsSummaryHtml(p, idx);
+  } else {
+    document.getElementById('recordEditorArea').value = block.lines.join('\n');
+  }
+
   document.getElementById('recordEditor').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 export function closeEditor() {
   editingId = null;
+  editingType = null;
   document.getElementById('recordEditor').style.display = 'none';
 }
 
 export function saveEditor() {
   if (!editingId) return;
-  const newText = document.getElementById('recordEditorArea').value;
-  const firstLine = newText.split(/\r?\n/)[0] || '';
-  if (!new RegExp(`^0 @${editingId}@ `).test(firstLine)) {
-    if (!confirm('Перший рядок не схожий на "0 @' + editingId + '@ ..." — структура запису могла злетіти. Все одно зберегти?')) return;
+
+  let newText;
+  if (editingType === 'INDI') {
+    const block = getRecordBlock(activeContent(), editingId);
+    if (!block) { alert('Запис зник із файлу — повтори пошук.'); return; }
+
+    const given = document.getElementById('reGiven').value.trim();
+    const patronymic = document.getElementById('rePatronymic').value.trim();
+    const surname = document.getElementById('reSurname').value.trim();
+    if (!given && !surname) { alert('Вкажи бодай ім’я або прізвище.'); return; }
+    const givn = [given, patronymic].filter(Boolean).join(' ');
+
+    const newLines = patchIndiFields(block.lines, {
+      name: `${givn} /${surname}/`,
+      sex: document.getElementById('reSex').value,
+      birtDate: document.getElementById('reBirthDate').value.trim(),
+      birtPlac: document.getElementById('reBirthPlace').value.trim(),
+      deatDate: document.getElementById('reDeathDate').value.trim(),
+      deatPlac: document.getElementById('reDeathPlace').value.trim(),
+      fsftid: document.getElementById('reFsftid').value.trim(),
+    });
+    newText = newLines.join('\n');
+  } else {
+    newText = document.getElementById('recordEditorArea').value;
+    const firstLine = newText.split(/\r?\n/)[0] || '';
+    if (!new RegExp(`^0 @${editingId}@ `).test(firstLine)) {
+      if (!confirm('Перший рядок не схожий на "0 @' + editingId + '@ ..." — структура запису могла злетіти. Все одно зберегти?')) return;
+    }
   }
 
+  const savedId = editingId;
   if (state.translatedContent) {
     state.translatedContent = replaceRecordBlock(state.translatedContent, editingId, newText);
   } else {
@@ -132,6 +229,6 @@ export function saveEditor() {
   runSearch();
   const note = document.getElementById('searchSaveNote');
   note.style.display = 'block';
-  note.textContent = `✅ Запис @${editingId}@ оновлено. Не забудь завантажити файл заново на вкладці «Переклад» або натисни «Завантажити .ged» нижче.`;
+  note.textContent = `✅ Запис @${savedId}@ оновлено. Не забудь завантажити файл заново на вкладці «Переклад» або натисни «Завантажити .ged» нижче.`;
   setTimeout(() => { note.style.display = 'none'; }, 6000);
 }

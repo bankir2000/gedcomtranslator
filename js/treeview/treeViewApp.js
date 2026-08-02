@@ -207,6 +207,24 @@ function rebuildTreeOn(id) {
   }
 }
 
+// Просить ГОЛОВНУ вкладку (opener) відкрити редактор саме цього запису на
+// вкладці "Пошук" — на відміну від додавання родича, тут не підходить
+// редактор "Люди" (він для НОВИХ людей, не для правки вже наявних).
+function openRecordEditorFor(personId) {
+  if (window.opener && !window.opener.closed) {
+    try {
+      window.opener.postMessage({ type: 'gedcom-open-record-editor', id: personId }, window.location.origin);
+      window.opener.focus();
+      return;
+    } catch { /* не вдалось достукатись до opener — падаємо на запасний варіант нижче */ }
+  }
+  // Немає живого opener (дерево відкрилось замість вкладки — типово для
+  // обмеженого WebView). Вміст файлу в пам'яті цієї вкладки не переживе
+  // перехід на іншу сторінку, тож чесно попереджаємо про це заздалегідь.
+  showToast('Немає доступу до головної вкладки — переходжу на головну сторінку (файл доведеться завантажити наново).');
+  setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+}
+
 // Спливне меню дій по картці — однакове для обох режимів перегляду.
 function openCardMenu(event, personId, person) {
   showCardMenu(event.clientX, event.clientY, [
@@ -218,7 +236,7 @@ function openCardMenu(event, personId, person) {
       },
     },
     { label: '🌳 Побудувати дерево по цій особі', onClick: () => rebuildTreeOn(personId) },
-    { label: '✏️ Відкрити редактор людей', onClick: () => openPageOrNavigate('people-editor.html') },
+    { label: '✏️ Редагувати цю особу', onClick: () => openRecordEditorFor(personId) },
   ]);
 }
 

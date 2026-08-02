@@ -16,7 +16,7 @@
   <div class="badge">GED</div>
   <div style="flex:1;min-width:0;">
     <h1 style="margin:0;">GEDCOM Перекладач Pro</h1>
-    <div style="font-size:.7rem;color:var(--muted);line-height:1.3;">v54 · зібрано 02.08.2026 06:00 · Банкір</div>
+    <div style="font-size:.7rem;color:var(--muted);line-height:1.3;">v56 · зібрано 02.08.2026 13:09 · Банкір</div>
   </div>
   <span class="sub">рос → укр</span>
   <button class="theme-toggle" id="themeBtn">☀️ День</button>
@@ -609,11 +609,50 @@
 
   <div class="section" id="recordEditor" style="display:none;flex-direction:column;">
     <div class="section-head" id="recordEditorTitle">Редагування запису</div>
-    <div class="section-body" style="display:flex;flex-direction:column;gap:10px;">
-      <div style="font-size:.78rem;color:var(--muted);">
-        Це сирі рядки GEDCOM для цього запису. Редагуй обережно — перший рядок (0 @ID@ ТИП) чіпати не варто.
+    <div class="section-body" style="display:flex;flex-direction:column;gap:14px;">
+
+      <!-- Структурована форма — для записів типу INDI -->
+      <div id="recordEditorForm" class="pe-form" style="display:none;flex-direction:column;gap:12px;">
+        <div class="pe-row2">
+          <label>Ім'я <input type="text" id="reGiven"></label>
+          <label>По батькові <input type="text" id="rePatronymic"></label>
+        </div>
+        <div class="pe-row2">
+          <label>Прізвище <input type="text" id="reSurname"></label>
+          <label>Стать
+            <select id="reSex">
+              <option value="">—</option>
+              <option value="M">Чоловіча</option>
+              <option value="F">Жіноча</option>
+            </select>
+          </label>
+        </div>
+        <div class="pe-row2">
+          <label>_FSFTID <input type="text" id="reFsftid"></label>
+          <label>Дата народження <input type="text" id="reBirthDate"></label>
+        </div>
+        <div class="pe-row2">
+          <label>Місце народження <input type="text" id="reBirthPlace"></label>
+          <label>Дата смерті <input type="text" id="reDeathDate"></label>
+        </div>
+        <div class="pe-row2">
+          <label>Місце смерті <input type="text" id="reDeathPlace"></label>
+          <label></label>
+        </div>
+        <div class="pe-rel-block">
+          <div class="pe-rel-title">Родинні зв'язки (лише перегляд — для змін використовуй «➕» на дереві)</div>
+          <div id="reRelationsView" style="font-size:.82rem;line-height:1.7;"></div>
+        </div>
       </div>
-      <textarea class="preview-area" id="recordEditorArea" rows="14" style="font-family:monospace;"></textarea>
+
+      <!-- Сирий текстовий фолбек — для записів НЕ типу INDI (FAM, SOUR тощо) -->
+      <div id="recordEditorRaw" style="display:none;flex-direction:column;gap:10px;">
+        <div style="font-size:.78rem;color:var(--muted);">
+          Це сирі рядки GEDCOM для цього запису. Редагуй обережно — перший рядок (0 @ID@ ТИП) чіпати не варто.
+        </div>
+        <textarea class="preview-area" id="recordEditorArea" rows="14" style="font-family:monospace;"></textarea>
+      </div>
+
       <div class="row">
         <button class="btn btn-primary btn-sm" id="btn-record-save">💾 Зберегти зміни</button>
         <button class="btn btn-ghost btn-sm" id="btn-record-cancel">Скасувати</button>

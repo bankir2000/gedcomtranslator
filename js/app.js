@@ -15,7 +15,7 @@ import { runTranslation, downloadResult } from './ui/runTranslation.js';
 import { renderBackups, exportAllBackup, importAllBackup, doImportAll, clearSiteData, renderBackupStatus } from './ui/backupUI.js';
 import { initWizard, goToStep } from './ui/wizard.js';
 import { runAnalysis, downloadAnalysisReport, shareDuplicatesReport, shareConfirmedDuplicatesReport } from './ui/analysisUI.js';
-import { runSearch, saveEditor, closeEditor } from './ui/searchUI.js';
+import { runSearch, saveEditor, closeEditor, openEditorById } from './ui/searchUI.js';
 import { initCompareTab, runCompare, downloadCompareReport } from './ui/compareUI.js';
 import { generateFsReport, downloadFsReport, runFsrFilter } from './ui/familysearchReportUI.js';
 import { searchTreePeople, openTreeWindow, refreshTreeSelection } from './ui/treeUI.js';
@@ -113,3 +113,16 @@ document.getElementById('treeSearchInput').addEventListener('input', searchTreeP
 document.getElementById('treeOpenBtn').addEventListener('click', openTreeWindow);
 document.getElementById('treeSourceOrig').addEventListener('change', refreshTreeSelection);
 document.getElementById('treeSourceTranslated').addEventListener('change', refreshTreeSelection);
+
+// Місток від спливного вікна перегляду дерева: пункт меню картки
+// "✏️ Редагувати цю особу" не може редагувати запис у СВОЄМУ вікні (там
+// лежить лише знімок для показу дерева) — натомість просить ГОЛОВНУ
+// вкладку перемкнутись на "Пошук" і відкрити редактор саме цього запису.
+window.addEventListener('message', (e) => {
+  if (e.origin !== window.location.origin) return;
+  if (e.data && e.data.type === 'gedcom-open-record-editor' && e.data.id) {
+    switchTab('search');
+    openEditorById(e.data.id);
+    window.focus();
+  }
+});

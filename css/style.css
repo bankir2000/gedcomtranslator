@@ -244,6 +244,23 @@
   .ph-toggle:not([data-toggle]) { cursor:default; }
   .ph-name { font-weight:600; }
   .ph-children { margin-top:2px; }
+
+  /* СТРУКТУРОВАНА ФОРМА РЕДАГУВАННЯ ЗАПИСУ (перевикористовує вигляд редактора "Люди") */
+  .pe-form { display: flex; flex-direction: column; gap: 10px; }
+  .pe-form label {
+    display: flex; flex-direction: column; gap: 4px; font-size: .78rem; color: var(--muted); font-weight: 600;
+  }
+  .pe-form input, .pe-form select {
+    background: var(--bg); border: 2px solid var(--border); border-radius: 8px;
+    padding: 7px 10px; font-size: .88rem; color: var(--text); font-family: inherit;
+  }
+  .pe-form input:focus, .pe-form select:focus { outline: none; border-color: var(--accent); }
+  .pe-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pe-rel-block {
+    border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .pe-rel-title { font-size: .78rem; font-weight: 700; color: var(--muted); }
   .patr-demo .ru-part { color:var(--muted); }
   .patr-demo .arrow   { color:var(--border); font-weight:700; }
   .patr-demo .uk-part { color:var(--green); font-weight:700; }
