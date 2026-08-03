@@ -9,12 +9,44 @@ import { state } from '../state.js';
 import { saveDict, importEntries } from '../dict/sets.js';
 import { savePatrDict } from '../dict/store.js';
 import { downloadText } from '../core/download.js';
+import { buildIndex } from '../engine/analysis.js';
+import { openPageOrNavigate } from './navUtil.js';
+
+const FS_BASE = 'https://www.familysearch.org/tree/person/details/';
 
 const typeLabel = { name: "Ім'я", surn: 'Прізвище', place: 'Місце', other: 'Інше', patr: 'По-батькові' };
 const TYPE_OPTIONS = ['name', 'patr', 'surn', 'place', 'other'];
 const GENDER_LABEL = { M: 'Ч', F: 'Ж', '': '—' };
 
 function esc(s) { return (s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+// ---------- ІНДЕКС "слово -> приклад людини з таким словом у ОРИГІНАЛІ" ----------
+// Навмисно з ОРИГІНАЛУ (state.rawContent), не з перекладу: мета — швидко
+// перейти на FamilySearch і виправити помилку в первинних даних, якщо вона
+// там справді є (а не в нашому перекладі).
+let wordIndexCache = null;
+let wordIndexSource = null;
+
+function buildWordIndex() {
+  const source = state.rawContent;
+  if (!source) return new Map();
+  if (wordIndexSource === source) return wordIndexCache;
+
+  const { individuals } = buildIndex(source);
+  const map = new Map(); // слово (нижній регістр) -> _FSFTID першого прикладу
+  for (const p of individuals.values()) {
+    if (!p.fsftid) continue;
+    const givnRaw = p.givn || (p.name || '').replace(/\/[^/]*\//, '').trim();
+    const surn = p.surn || (p.name.match(/\/([^/]*)\//) || [, ''])[1];
+    const words = [...givnRaw.split(/\s+/), surn].map(w => w.trim().toLowerCase()).filter(Boolean);
+    for (const w of words) {
+      if (!map.has(w)) map.set(w, p.fsftid);
+    }
+  }
+  wordIndexCache = map;
+  wordIndexSource = source;
+  return map;
+}
 
 // Об'єднаний масив рядків для відображення. Кожен рядок пам'ятає, звідки він
 // узятий (_src: 'dict' | 'patr') і його індекс у відповідному масиві, щоб правки
@@ -42,7 +74,14 @@ export function renderDict() {
   document.getElementById('dictEmpty').textContent = q ? 'Нічого не знайдено.' : 'Довідник порожній.';
   document.getElementById('dictCount').textContent = `${rows.length} з ${state.dict.length + state.patrDict.length}`;
 
-  body.innerHTML = rows.map((e, ri) => `<tr>
+  const wordIndex = buildWordIndex();
+
+  body.innerHTML = rows.map((e, ri) => {
+    const fsftid = ['name', 'patr', 'surn'].includes(e.type) ? wordIndex.get(e.ru.trim().toLowerCase()) : null;
+    const fsCell = fsftid
+      ? `<button class="fs-link-btn" data-fsftid="${esc(fsftid)}" title="Приклад людини з цим словом у файлі — перейти на FamilySearch">🔗</button>`
+      : `<span style="color:var(--muted);font-size:.75rem;" title="У поточному файлі немає прикладу з цим словом і власним _FSFTID">—</span>`;
+    return `<tr>
       <td><select class="type-sel" data-ri="${ri}" data-field="type">
         ${TYPE_OPTIONS.map(t => `<option value="${t}"${e.type === t ? ' selected' : ''}>${typeLabel[t]}</option>`).join('')}
       </select></td>
@@ -51,8 +90,14 @@ export function renderDict() {
       <td><select class="type-sel" data-ri="${ri}" data-field="gender">
         ${['', 'M', 'F'].map(g => `<option value="${g}"${e.gender === g ? ' selected' : ''}>${GENDER_LABEL[g]}</option>`).join('')}
       </select></td>
+      <td>${fsCell}</td>
       <td><button class="del-btn" data-ri="${ri}">🗑</button></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
+
+  body.querySelectorAll('.fs-link-btn').forEach(btn => {
+    btn.addEventListener('click', () => openPageOrNavigate(FS_BASE + encodeURIComponent(btn.dataset.fsftid)));
+  });
 
   // Зберігаємо поточний набір рядків, щоб обробники подій знали, куди писати
   const currentRows = rows;
