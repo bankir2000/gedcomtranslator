@@ -9,7 +9,7 @@ import { state } from '../state.js';
 import { saveDict, importEntries } from '../dict/sets.js';
 import { savePatrDict } from '../dict/store.js';
 import { downloadText } from '../core/download.js';
-import { buildIndex } from '../engine/analysis.js';
+import { buildWordFsftidIndex } from '../engine/wordScan.js';
 import { openPageOrNavigate } from './navUtil.js';
 
 const FS_BASE = 'https://www.familysearch.org/tree/person/details/';
@@ -31,21 +31,9 @@ function buildWordIndex() {
   const source = state.rawContent;
   if (!source) return new Map();
   if (wordIndexSource === source) return wordIndexCache;
-
-  const { individuals } = buildIndex(source);
-  const map = new Map(); // слово (нижній регістр) -> _FSFTID першого прикладу
-  for (const p of individuals.values()) {
-    if (!p.fsftid) continue;
-    const givnRaw = p.givn || (p.name || '').replace(/\/[^/]*\//, '').trim();
-    const surn = p.surn || (p.name.match(/\/([^/]*)\//) || [, ''])[1];
-    const words = [...givnRaw.split(/\s+/), surn].map(w => w.trim().toLowerCase()).filter(Boolean);
-    for (const w of words) {
-      if (!map.has(w)) map.set(w, p.fsftid);
-    }
-  }
-  wordIndexCache = map;
+  wordIndexCache = buildWordFsftidIndex(source);
   wordIndexSource = source;
-  return map;
+  return wordIndexCache;
 }
 
 // Об'єднаний масив рядків для відображення. Кожен рядок пам'ятає, звідки він

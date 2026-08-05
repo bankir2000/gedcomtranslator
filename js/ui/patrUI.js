@@ -6,6 +6,10 @@
 import { state } from '../state.js';
 import { savePatrDict } from '../dict/store.js';
 import { parseRuPatronymic, isPatronymic, translatePatronymic } from '../dict/patronymics.js';
+import { buildWordFsftidIndex } from '../engine/wordScan.js';
+import { openPageOrNavigate } from './navUtil.js';
+
+const FS_BASE = 'https://www.familysearch.org/tree/person/details/';
 
 function esc(s) { return (s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
@@ -54,13 +58,19 @@ export function generatePatrDict() {
     return;
   }
 
+  const wordIndex = buildWordFsftidIndex(state.rawContent);
   let html = '';
   for (const [ru, info] of [...found.entries()].sort((a, b) => b[1].count - a[1].count)) {
+    const fsftid = wordIndex.get(ru.trim().toLowerCase());
+    const fsBtn = fsftid
+      ? `<button class="fs-link-btn patr-scan-fs-btn" data-fsftid="${esc(fsftid)}" title="Приклад людини з цим словом у файлі — перейти на FamilySearch">🔗</button>`
+      : '';
     if (info.manual) {
       html += `<div class="pair" style="margin:3px 0;">`
         + `<span class="ru-part">${esc(ru)}</span><span class="arrow">→</span>`
         + `<span class="manual-badge">ручний: ${esc(info.manual)}</span>`
         + ` <span style="color:var(--muted);font-size:.75rem;">(${info.count}×)</span>`
+        + fsBtn
         + `</div>`;
       continue;
     }
@@ -75,11 +85,15 @@ export function generatePatrDict() {
       + `<span class="ru-part">${esc(ru)}</span><span class="arrow">→</span>`
       + badge
       + ` <span style="color:var(--muted);font-size:.75rem;">(${info.count}×)</span>`
+      + fsBtn
       + `<input type="text" class="search-input patr-scan-input" data-ru="${esc(ru)}" value="${unresolved ? '' : esc(info.auto)}" placeholder="Правильний переклад…" style="width:160px;margin-left:6px;">`
       + `<button class="btn btn-ghost patr-scan-save-btn" data-ru="${esc(ru)}" style="padding:2px 8px;font-size:.72rem;">+ до словника (По-батькові)</button>`
       + `</div>`;
   }
   el.innerHTML = html;
+  el.querySelectorAll('.patr-scan-fs-btn').forEach(btn => {
+    btn.addEventListener('click', () => openPageOrNavigate(FS_BASE + encodeURIComponent(btn.dataset.fsftid)));
+  });
   el.querySelectorAll('.patr-scan-save-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const ru = btn.dataset.ru;

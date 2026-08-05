@@ -5,6 +5,31 @@
 // На відміну від по-батькові тут немає "правила" — лише довідник, тож стан лише
 // двійковий: "ручний" (є в довіднику) або "немає" (треба ввести).
 import { isPatronymic } from '../dict/patronymics.js';
+import { buildIndex } from './analysis.js';
+
+/**
+ * Індекс "слово (нижній регістр) -> _FSFTID першого прикладу людини з цим
+ * словом в імені/по-батькові/прізвищі". Навмисно з ОРИГІНАЛУ файлу (не
+ * перекладу) — мета швидко перейти на FamilySearch і виправити помилку в
+ * первинних даних, якщо вона там справді є.
+ * @param {string} rawContent
+ * @returns {Map<string,string>}
+ */
+export function buildWordFsftidIndex(rawContent) {
+  const map = new Map();
+  if (!rawContent) return map;
+  const { individuals } = buildIndex(rawContent);
+  for (const p of individuals.values()) {
+    if (!p.fsftid) continue;
+    const givnRaw = p.givn || (p.name || '').replace(/\/[^/]*\//, '').trim();
+    const surn = p.surn || (p.name.match(/\/([^/]*)\//) || [, ''])[1];
+    const words = [...givnRaw.split(/\s+/), surn].map(w => w.trim().toLowerCase()).filter(Boolean);
+    for (const w of words) {
+      if (!map.has(w)) map.set(w, p.fsftid);
+    }
+  }
+  return map;
+}
 
 const PLACE_TAGS = new Set(['PLAC', 'CITY', 'STAE', 'CTRY', 'ADDR', 'ADR1', 'ADR2']);
 

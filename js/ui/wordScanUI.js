@@ -3,7 +3,22 @@
 // тут або слово вже є в довіднику ("ручний"), або його нема і треба ввести переклад.
 import { state } from '../state.js';
 import { addLearnedEntry } from '../dict/sets.js';
-import { scanCategory, CATEGORY_CONFIG } from '../engine/wordScan.js';
+import { scanCategory, CATEGORY_CONFIG, buildWordFsftidIndex } from '../engine/wordScan.js';
+import { openPageOrNavigate } from './navUtil.js';
+
+const FS_BASE = 'https://www.familysearch.org/tree/person/details/';
+
+let wordIndexCache = null;
+let wordIndexSource = null;
+function getWordIndex() {
+  const source = state.rawContent;
+  if (!source) return new Map();
+  if (wordIndexSource !== source) {
+    wordIndexCache = buildWordFsftidIndex(source);
+    wordIndexSource = source;
+  }
+  return wordIndexCache;
+}
 
 function esc(s) { return (s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
@@ -38,14 +53,20 @@ export function generateWordScan(cat) {
     return;
   }
 
+  const wordIndex = getWordIndex();
   let html = '';
   for (const [ru, count] of [...found.entries()].sort((a, b) => b[1] - a[1])) {
+    const fsftid = wordIndex.get(ru.trim().toLowerCase());
+    const fsBtn = fsftid
+      ? `<button class="fs-link-btn word-scan-fs-btn" data-fsftid="${esc(fsftid)}" title="Приклад людини з цим словом у файлі — перейти на FamilySearch">🔗</button>`
+      : '';
     const entry = findInDict(cat, ru);
     if (entry) {
       html += `<div class="pair" style="margin:3px 0;">`
         + `<span class="ru-part">${esc(ru)}</span><span class="arrow">→</span>`
         + `<span class="manual-badge">ручний: ${esc(entry.uk)}</span>`
         + ` <span style="color:var(--muted);font-size:.75rem;">(${count}×)</span>`
+        + fsBtn
         + `</div>`;
       continue;
     }
@@ -53,11 +74,15 @@ export function generateWordScan(cat) {
       + `<span class="ru-part">${esc(ru)}</span><span class="arrow">→</span>`
       + `<span style="color:var(--red);font-size:.72rem;">немає в довіднику</span>`
       + ` <span style="color:var(--muted);font-size:.75rem;">(${count}×)</span>`
+      + fsBtn
       + `<input type="text" class="search-input word-scan-input" data-ru="${esc(ru)}" data-cat="${cat}" placeholder="Правильний переклад…" style="width:160px;margin-left:6px;">`
       + `<button class="btn btn-ghost word-scan-save-btn" data-ru="${esc(ru)}" data-cat="${cat}" style="padding:2px 8px;font-size:.72rem;">+ до словника (${label})</button>`
       + `</div>`;
   }
   el.innerHTML = html;
+  el.querySelectorAll('.word-scan-fs-btn').forEach(btn => {
+    btn.addEventListener('click', () => openPageOrNavigate(FS_BASE + encodeURIComponent(btn.dataset.fsftid)));
+  });
   el.querySelectorAll('.word-scan-save-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const ru = btn.dataset.ru, c = btn.dataset.cat;
