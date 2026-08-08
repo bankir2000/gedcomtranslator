@@ -63,11 +63,17 @@ export function translateLine(line, opts, dictEntries, currentSex) {
   // а не текст для перекладу — переклад назв місяців ламає сумісність з іншими
   // генеалогічними програмами, які парсять цей формат.
 
-  const placeTagRe = /^(PLAC|CITY|STAE|CTRY|ADDR|ADR1|ADR2)$/;
+  // ABBR/TITL (скорочена й повна назва джерела) навмисно ДОДАНО сюди, а не
+  // лише "чисті" геотеги: у цьому типі експорту назви джерел часто містять
+  // місце прямо в тексті ("Україна, Черкаська губ., сповідні відомості..."),
+  // і словник місць застосовується substring-пошуком — тож коректно
+  // спрацює й тут, навіть якщо це не єдиний вміст поля.
+  const placeTagRe = /^(PLAC|CITY|STAE|CTRY|ADDR|ADR1|ADR2|ABBR|TITL)$/;
   if (opts.places && val && placeTagRe.test(tag)) {
     const orig = val;
     val = applyDictToValue(val, dictEntries.place);
-    if (opts.translitAuto && val === orig) { const t = safeTranslitStr(val); if (t !== val) { val = t; changed++; methods.add('translit'); } }
+    const isCitationTag = tag === 'ABBR' || tag === 'TITL';
+    if (opts.translitAuto && !isCitationTag && val === orig) { const t = safeTranslitStr(val); if (t !== val) { val = t; changed++; methods.add('translit'); } }
     else if (val !== orig) { changed++; methods.add('dict'); }
   }
 
@@ -257,7 +263,7 @@ export function collectUntranslated(lines, origLines) {
         // спільну кирилицю — інакше в список потрапляють уже коректні українські слова
         // (Ганна, Михайло тощо), які просто не мають окремих російських чи українських літер.
         if (!hasRussianChars(w)) continue;
-        const key = 'unch:' + w.toLowerCase();
+        const key = w.toLowerCase(); // той самий ключ, що й у проході 1 — інакше те саме слово дублюється в списку двічі
         if (!wordMap.has(key)) wordMap.set(key, { word: w, count: 0, contexts: [], tag, unchanged: true });
         const entry = wordMap.get(key);
         entry.count++;
