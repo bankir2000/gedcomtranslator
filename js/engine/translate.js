@@ -227,13 +227,19 @@ export function collectUntranslated(lines, origLines) {
     const tag = m[1].split(' ').pop();
     const val = m[2];
     if (!/[а-яёА-ЯЁіІїЇєЄ]/.test(val)) continue;
+    // Для NAME окремо визначаємо, яка частина слова походить із /прізвища/ —
+    // це важливо для дефолтного типу в "Непереведених" (щоб прізвище всередині
+    // складеного NAME не пропонувалось як "Ім'я" за замовчуванням).
+    let surnamePart = '';
+    if (tag === 'NAME') { const sm = val.match(/\/([^/]*)\//); if (sm) surnamePart = sm[1]; }
     const words = val.replace(/\//g, ' ').split(/\s+/);
     for (let w of words) {
       w = stripPunct(w);
       if (w.length < 2) continue;
       if (!hasRussianChars(w)) continue;
       const key = w.toLowerCase();
-      if (!wordMap.has(key)) wordMap.set(key, { word: w, count: 0, contexts: [], tag });
+      const effectiveTag = (tag === 'NAME' && surnamePart.includes(w)) ? 'SURN' : tag;
+      if (!wordMap.has(key)) wordMap.set(key, { word: w, count: 0, contexts: [], tag: effectiveTag });
       const entry = wordMap.get(key);
       entry.count++;
       if (entry.contexts.length < 3) entry.contexts.push({ line: origLines[i], fsftid: fsftidOf(i) });

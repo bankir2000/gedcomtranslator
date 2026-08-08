@@ -3,6 +3,21 @@ import { state } from '../state.js';
 import { addLearnedEntry } from '../dict/sets.js';
 import { addLearnedPatr } from '../dict/store.js';
 import { escHtml } from './reviewUI.js';
+import { tagCategory } from '../engine/translate.js';
+import { isPatronymic } from '../dict/patronymics.js';
+
+// Розумний дефолт для випадаючого списку "тип довідника": за тегом, де
+// слово знайдено, плюс окрема перевірка форми слова для по-батькові (воно
+// живе в тому самому тегу, що й ім'я, тож самого тега замало). Це лише
+// ПОЧАТКОВИЙ вибір — людина завжди може вручну обрати інший тип.
+function guessDictType(entry) {
+  if (entry.tag === '_PATR' || isPatronymic(entry.word)) return 'patr';
+  const cat = tagCategory(entry.tag);
+  if (cat === 'names') return 'name';
+  if (cat === 'surn') return 'surn';
+  if (cat === 'places') return 'place';
+  return 'other';
+}
 
 export function renderUntrans() {
   const body = document.getElementById('untransBody');
@@ -26,11 +41,10 @@ export function renderUntrans() {
     <td>${fsftidHtml}</td>
     <td><input class="untrans-input" id="uinput-${i}" placeholder="Переклад…" value="${escHtml(e.ukInput || '')}"></td>
     <td><select class="type-sel" id="utype-${i}">
-      <option value="name">Ім'я</option>
-      <option value="patr">По-батькові</option>
-      <option value="surn">Прізвище</option>
-      <option value="place">Місце</option>
-      <option value="other">Інше</option>
+      ${['name', 'patr', 'surn', 'place', 'other'].map(t => {
+        const labels = { name: "Ім'я", patr: 'По-батькові', surn: 'Прізвище', place: 'Місце', other: 'Інше' };
+        return `<option value="${t}"${guessDictType(e) === t ? ' selected' : ''}>${labels[t]}</option>`;
+      }).join('')}
     </select></td>
     <td>
       <button class="btn btn-ghost btn-sm untrans-add-btn" data-idx="${i}">+ До словника</button>
