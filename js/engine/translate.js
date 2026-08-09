@@ -39,6 +39,7 @@ export function translateLine(line, opts, dictEntries, currentSex) {
   const prefix = m[1];
   let val = m[2] || '';
   const tag = prefix.split(' ').pop();
+  const level = parseInt(prefix, 10);
   let changed = 0;
   let sex = currentSex;
   // Набір методів, застосованих до цього рядка: 'dict' | 'translit' | 'patr' | 'value'.
@@ -63,18 +64,26 @@ export function translateLine(line, opts, dictEntries, currentSex) {
   // а не текст для перекладу — переклад назв місяців ламає сумісність з іншими
   // генеалогічними програмами, які парсять цей формат.
 
-  // ABBR/TITL (скорочена й повна назва джерела) навмисно ДОДАНО сюди, а не
-  // лише "чисті" геотеги: у цьому типі експорту назви джерел часто містять
-  // місце прямо в тексті ("Україна, Черкаська губ., сповідні відомості..."),
-  // і словник місць застосовується substring-пошуком — тож коректно
-  // спрацює й тут, навіть якщо це не єдиний вміст поля.
-  const placeTagRe = /^(PLAC|CITY|STAE|CTRY|ADDR|ADR1|ADR2|ABBR|TITL)$/;
+  const placeTagRe = /^(PLAC|CITY|STAE|CTRY|ADDR|ADR1|ADR2)$/;
   if (opts.places && val && placeTagRe.test(tag)) {
     const orig = val;
     val = applyDictToValue(val, dictEntries.place);
-    const isCitationTag = tag === 'ABBR' || tag === 'TITL';
-    if (opts.translitAuto && !isCitationTag && val === orig) { const t = safeTranslitStr(val); if (t !== val) { val = t; changed++; methods.add('translit'); } }
+    if (opts.translitAuto && val === orig) { const t = safeTranslitStr(val); if (t !== val) { val = t; changed++; methods.add('translit'); } }
     else if (val !== orig) { changed++; methods.add('dict'); }
+  }
+
+  // "Цитатні" поля джерел (ABBR/TITL/_BIBL/_SUBQ/VALUE, а також NAME НЕ на
+  // рівні 1 — тобто не персональне ім'я, а частина назви джерела) часто
+  // містять місця, церковні терміни тощо ПРЯМО В ТЕКСТІ довшої цитати
+  // ("Україна, Черкаська губ., сповідні відомості"). Застосовуємо ПОВНИЙ
+  // словник (імена+прізвища+місця+інше) через безпечний substring-пошук —
+  // і НІКОЛИ не транслітеруємо решту тексту "наосліп": для короткого поля
+  // місця це прийнятно, а для довгої вільної цитати могло б її спотворити.
+  const citationTags = new Set(['ABBR', 'TITL', '_BIBL', '_SUBQ', 'VALUE']);
+  if (val && (citationTags.has(tag) || (tag === 'NAME' && level !== 1))) {
+    const orig = val;
+    val = applyDictToValue(val, [...dictEntries.name, ...dictEntries.surn, ...dictEntries.place, ...(dictEntries.other || [])]);
+    if (val !== orig) { changed++; methods.add('dict'); }
   }
 
   if ((opts.names || opts.patr) && val && tag === 'GIVN') {
@@ -129,7 +138,7 @@ if (opts.surn && val && (tag === 'SURN' || tag === 'NSFX')) {
     if (val !== orig) changed++;
   }
 
-  if ((opts.names || opts.surn || opts.patr) && val && tag === 'NAME') {
+  if ((opts.names || opts.surn || opts.patr) && val && tag === 'NAME' && level === 1) {
     const orig = val;
     val = val.replace(/\/([^/]*)\//, (_, s) => {
       if (!opts.surn) return `/${s}/`;
