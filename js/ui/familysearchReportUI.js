@@ -44,7 +44,7 @@ function runFilter() {
   if (!lastRows) return;
   const q = (document.getElementById('fsrSearch').value || '').trim().toLowerCase();
   const filtered = q
-    ? lastRows.filter(r => [r.fsftid, r.given, r.patr, r.surn, r.birthDate, r.birthPlace].some(v => (v || '').toLowerCase().includes(q)))
+    ? lastRows.filter(r => [r.fsftid, r.given, r.patr, r.surn, r.birthDate, r.birthPlace, r.marriageSpouses, r.marriageDates, r.marriagePlaces, r.deathDate, r.deathPlace].some(v => (v || '').toLowerCase().includes(q)))
     : lastRows;
 
   const body = document.getElementById('fsrBody');
@@ -57,7 +57,12 @@ function runFilter() {
       <td>${esc(r.surn) || '—'}</td>
       <td>${esc(r.birthDate) || '—'}</td>
       <td>${esc(r.birthPlace) || '—'}</td>
-    </tr>`).join('') + (filtered.length > 500 ? `<tr><td colspan="6" class="empty-hint">…і ще ${filtered.length - 500}. У завантаженому HTML-файлі будуть усі рядки.</td></tr>` : '');
+      <td>${esc(r.marriageSpouses) || '—'}</td>
+      <td>${esc(r.marriageDates) || '—'}</td>
+      <td>${esc(r.marriagePlaces) || '—'}</td>
+      <td>${esc(r.deathDate) || '—'}</td>
+      <td>${esc(r.deathPlace) || '—'}</td>
+    </tr>`).join('') + (filtered.length > 500 ? `<tr><td colspan="11" class="empty-hint">…і ще ${filtered.length - 500}. У завантаженому HTML-файлі будуть усі рядки.</td></tr>` : '');
 }
 
 export function downloadFsReport() {

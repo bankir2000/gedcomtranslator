@@ -18,7 +18,7 @@ import { runAnalysis, downloadAnalysisReport, shareDuplicatesReport, shareConfir
 import { runSearch, saveEditor, closeEditor, openEditorById, linkRelation } from './ui/searchUI.js';
 import { initCompareTab, runCompare, downloadCompareReport } from './ui/compareUI.js';
 import { generateFsReport, downloadFsReport, runFsrFilter } from './ui/familysearchReportUI.js';
-import { searchTreePeople, openTreeWindow, refreshTreeSelection } from './ui/treeUI.js';
+import { searchTreePeople, openTreeWindow, refreshTreeSelection, exportDirectRelatives } from './ui/treeUI.js';
 import { initLivingPeopleUI, refreshMergeControls } from './ui/mergeUI.js';
 
 // ---- Ініціалізація стану ----
@@ -115,6 +115,7 @@ document.getElementById('fsrSearch').addEventListener('input', runFsrFilter);
 // ---- Вкладка «Родинне дерево» ----
 document.getElementById('treeSearchInput').addEventListener('input', searchTreePeople);
 document.getElementById('treeOpenBtn').addEventListener('click', openTreeWindow);
+document.getElementById('treeExportDirectBtn').addEventListener('click', exportDirectRelatives);
 document.getElementById('treeSourceOrig').addEventListener('change', refreshTreeSelection);
 document.getElementById('treeSourceTranslated').addEventListener('change', refreshTreeSelection);
 

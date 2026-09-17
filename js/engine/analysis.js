@@ -7,7 +7,7 @@ import { isPatronymic } from '../dict/patronymics.js';
 // текстом залежить від статі (колір карток дерева, підбір терміна
 // спорідненості, перевірка "стать не переплутана"), звіряється рівно з
 // 'M'/'F' — тож нормалізуємо ОДРАЗУ тут, а не в кожному місці окремо.
-function normalizeSex(raw) {
+export function normalizeSex(raw) {
   const s = (raw || '').trim().toUpperCase();
   if (s === 'M' || s === 'М' || s === 'Ч') return 'M'; // 'М' тут кирилична
   if (s === 'F' || s === 'Ж') return 'F';

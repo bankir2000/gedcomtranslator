@@ -12,6 +12,11 @@ export function buildReportHtml(rows, meta) {
       <td>${esc(r.surn) || '—'}</td>
       <td>${esc(r.birthDate) || '—'}</td>
       <td>${esc(r.birthPlace) || '—'}</td>
+      <td>${esc(r.marriageSpouses) || '—'}</td>
+      <td>${esc(r.marriageDates) || '—'}</td>
+      <td>${esc(r.marriagePlaces) || '—'}</td>
+      <td>${esc(r.deathDate) || '—'}</td>
+      <td>${esc(r.deathPlace) || '—'}</td>
     </tr>`).join('');
 
   return `<!DOCTYPE html>
@@ -32,6 +37,16 @@ export function buildReportHtml(rows, meta) {
   #rowCount { color:var(--muted); font-size:.82rem; white-space:nowrap; }
   table { width:100%; border-collapse:collapse; font-size:.85rem; }
   th, td { padding:7px 10px; border-bottom:1px solid var(--border); text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:280px; }
+  /* Колонки шлюбу (чоловік/дружина, дата, місце) — БЕЗ обрізання: ім'я має
+     бути видно повністю, а при кількох шлюбах кожен запис іде своїм рядком
+     (\n у даних + pre-line тут), тож ячейка сама розтягується по висоті на
+     стільки рядків, скільки шлюбів. vertical-align:top, бо решта колонок у
+     тому ж <tr> лишаються однорядковими й інакше «провисали» б по центру. */
+  td:nth-child(7), td:nth-child(8), td:nth-child(9) {
+    white-space:pre-line; overflow:visible; text-overflow:clip; max-width:none;
+    min-width:220px; vertical-align:top;
+  }
+  th:nth-child(7), th:nth-child(8), th:nth-child(9) { white-space:nowrap; }
   th { background:var(--head); position:sticky; top:57px; cursor:pointer; user-select:none; z-index:5; }
   th:hover { background:var(--hover); }
   th .arrow { color:var(--accent); font-size:.7rem; margin-left:3px; }
@@ -62,6 +77,11 @@ export function buildReportHtml(rows, meta) {
         <th data-col="3">Прізвище <span class="arrow"></span></th>
         <th data-col="4">Дата народження <span class="arrow"></span></th>
         <th data-col="5">Місце народження <span class="arrow"></span></th>
+        <th data-col="6">Чоловік/Дружина <span class="arrow"></span></th>
+        <th data-col="7">Дата шлюбу <span class="arrow"></span></th>
+        <th data-col="8">Місце шлюбу <span class="arrow"></span></th>
+        <th data-col="9">Дата смерті <span class="arrow"></span></th>
+        <th data-col="10">Місце смерті <span class="arrow"></span></th>
       </tr>
       <tr class="filters-row">
         <th><input class="col-filter" data-col="0" placeholder="фільтр…"></th>
@@ -70,6 +90,11 @@ export function buildReportHtml(rows, meta) {
         <th><input class="col-filter" data-col="3" placeholder="фільтр…"></th>
         <th><input class="col-filter" data-col="4" placeholder="фільтр…"></th>
         <th><input class="col-filter" data-col="5" placeholder="фільтр…"></th>
+        <th><input class="col-filter" data-col="6" placeholder="фільтр…"></th>
+        <th><input class="col-filter" data-col="7" placeholder="фільтр…"></th>
+        <th><input class="col-filter" data-col="8" placeholder="фільтр…"></th>
+        <th><input class="col-filter" data-col="9" placeholder="фільтр…"></th>
+        <th><input class="col-filter" data-col="10" placeholder="фільтр…"></th>
       </tr>
     </thead>
     <tbody>${trs}</tbody>

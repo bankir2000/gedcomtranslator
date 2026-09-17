@@ -7,6 +7,8 @@ import { state } from '../state.js';
 import { buildIndex } from '../engine/analysis.js';
 import { searchPeople, buildFamilyGraph, personLabel } from '../engine/familyTree.js';
 import { openPageOrNavigate } from './navUtil.js';
+import { buildDirectRelativesGedcom } from '../engine/directRelativesExport.js';
+import { downloadGedcom } from '../core/download.js';
 
 function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
@@ -101,10 +103,12 @@ export function refreshTreeSelection() {
 function renderSelectedPerson() {
   const box = document.getElementById('treeSelectedPerson');
   const openBtn = document.getElementById('treeOpenBtn');
+  const exportBtn = document.getElementById('treeExportDirectBtn');
   if (!box || !openBtn) return;
   if (!currentPersonId) {
     box.innerHTML = '<span class="muted">Особу ще не обрано — знайди її вище.</span>';
     openBtn.disabled = true;
+    if (exportBtn) exportBtn.disabled = true;
     return;
   }
   const idx = getIndex();
@@ -112,11 +116,30 @@ function renderSelectedPerson() {
   if (!person) {
     box.innerHTML = '<span class="muted">Особу не знайдено в обраному джерелі (можливо, файл змінився) — обери іншу.</span>';
     openBtn.disabled = true;
+    if (exportBtn) exportBtn.disabled = true;
     return;
   }
   box.innerHTML = `Корінь дерева: <b>${esc(personLabel(person))}</b>` +
     (person.fsftid ? ` <span class="manual-badge">${esc(person.fsftid)}</span>` : ' <span class="muted">без FSFTID</span>');
   openBtn.disabled = false;
+  if (exportBtn) exportBtn.disabled = false;
+}
+
+// Формує окремий GEDCOM-файл лише з прямої лінії (предки+нащадки+їхні
+// чоловіки/дружини) відносно обраної кореневої особи, з того самого
+// джерела (оригінал/переклад), що зараз обрано для вкладки "Дерево".
+export function exportDirectRelatives() {
+  if (!currentPersonId) return;
+  const idx = getIndex();
+  if (!idx) return;
+  const person = idx.individuals.get(currentPersonId);
+  const useTranslated = document.querySelector('input[name="treeSource"]:checked')?.value === 'translated';
+  const sourceContent = useTranslated ? state.translatedContent : state.rawContent;
+  const { content, error, stats } = buildDirectRelativesGedcom(sourceContent, currentPersonId);
+  if (error) { alert(error); return; }
+  const base = (person ? personLabel(person) : currentPersonId).replace(/[^\p{L}\p{N}]+/gu, '_').slice(0, 60);
+  downloadGedcom(`пряма_лінія_${base}.ged`, content);
+  alert(`Збережено файл прямих родичів: ${stats.individuals} осіб, ${stats.families} сімей.`);
 }
 
 // Формує граф родини навколо обраної особи й відкриває його в окремій

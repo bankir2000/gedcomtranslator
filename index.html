@@ -16,7 +16,7 @@
   <div class="badge">GED</div>
   <div style="flex:1;min-width:0;">
     <h1 style="margin:0;">GEDCOM Перекладач Pro</h1>
-    <div style="font-size:.7rem;color:var(--muted);line-height:1.3;">v65 · зібрано 09.08.2026 06:29 · Банкір</div>
+    <div style="font-size:.7rem;color:var(--muted);line-height:1.3;">v69 · зібрано 16.09.2026 11:21 · Банкір</div>
   </div>
   <span class="sub">рос → укр</span>
   <button class="theme-toggle" id="themeBtn">☀️ День</button>
@@ -759,7 +759,7 @@
     </div>
     <div style="overflow-x:auto;max-height:560px;overflow-y:auto;">
       <table class="dict-table">
-        <thead><tr><th>_FSFTID</th><th>Ім'я</th><th>По-батькові</th><th>Прізвище</th><th>Дата народження</th><th>Місце народження</th></tr></thead>
+        <thead><tr><th>_FSFTID</th><th>Ім'я</th><th>По-батькові</th><th>Прізвище</th><th>Дата народження</th><th>Місце народження</th><th>Чоловік/Дружина</th><th>Дата шлюбу</th><th>Місце шлюбу</th><th>Дата смерті</th><th>Місце смерті</th></tr></thead>
         <tbody id="fsrBody"></tbody>
       </table>
     </div>
@@ -794,6 +794,7 @@
         <div class="row" style="gap:14px;flex-wrap:wrap;align-items:center;padding:12px;background:var(--surface2);border:2px solid var(--border);border-radius:10px;">
           <div id="treeSelectedPerson" style="flex:1;min-width:200px;font-size:.9rem;"><span class="muted">Особу ще не обрано — знайди її вище.</span></div>
           <button class="btn btn-primary" id="treeOpenBtn" type="button" disabled>🌳 Відкрити дерево</button>
+          <button class="btn btn-success" id="treeExportDirectBtn" type="button" disabled>⬇ Прямі родичі (.ged)</button>
         </div>
       </div>
     </div>
